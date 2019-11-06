@@ -33,7 +33,7 @@ dedicated to the project.
 That is why we advise you to generate a virtual environment (called ```venv``` here):
 
 ```shell script
-python3 -m venv ./venv  # You need to have
+python3 -m venv ./venv 
 ```
 
 Then enter the environment:
@@ -67,3 +67,10 @@ python starter_code.py  # To launch the coursework script
 ```
 
 It is also possible to use the virtual environment tools already included in IDEs (such as PyCharm).
+
+## Leaving the virtual environment
+
+If you want to leave the virtual environment, you just need to enter the following command:
+```shell script
+deactivate
+```
