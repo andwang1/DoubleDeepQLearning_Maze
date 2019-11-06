@@ -7,7 +7,7 @@ You may find in this repository all the files that are necessary for completing 
 - ```Coursework_Part_1.pdf``` containing all the main coursework instructions and questions.
 - ```Tutorial.pdf``` which explains how to implement Deep Q-Learning through several stages. It is aligned with ```Coursework_Part_1.pdf```.
 - ```starter_code.py``` providing Python 3 code which you will build upon during this tutorial and the associated coursework.
-- ```environment.py``` in which the environment is implemented. *This file should not be modified*.
+- ```environment.py``` in which the environment is implemented. **This file should not be modified**.
 - ```torch_example.py``` which gives an example of DQN implementation using PyTorch (see section 2 in ```Tutorial.pdf``` for more information).
 
 ## Requirements
