@@ -99,22 +99,6 @@ class DQN:
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
-    def train_q_network_batch(self, batch_transitions):
-        # Set all the gradients stored in the optimiser to zero.
-        self.optimiser.zero_grad()
-        # Create input tensor from batch inputs
-
-        # Calculate the loss for this transition.
-        loss = self._calculate_loss(transition)
-        print(loss)
-        # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
-        loss.backward()
-        # Take one gradient step to update the Q-network.
-        self.optimiser.step()
-        # Return the loss as a scalar
-        return loss.item()
-
-    # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network(self, transition):
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
@@ -165,24 +149,13 @@ class ReplayBuffer:
 
     # returns list of tuples containing the transitions
     def generate_batch(self, batch_size=50):
-        current_states = []
-        next_states = []
-        actions = []
-        rewards = []
-        for _ in range(batch_size):
-            transition = self.replay_buffer[np.random.randint(len(self) + 1)]
-            current_states.append(transition[0]) # 0x2
-            actions.append([transition[1]]) # 0x1
-            rewards.append([transition[2]]) # 0x1
-            next_states.append(transition[3]) #0x1
-
         return [self.replay_buffer[np.random.randint(len(self) + 1)] for _ in range(batch_size)]
 
 
 
 # Main entry point
 if __name__ == "__main__":
-    plot = True
+    plot = False
     # Set the random seed for both NumPy and Torch
     # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
     CID = 1
@@ -197,14 +170,12 @@ if __name__ == "__main__":
     agent = Agent(environment)
     # Create a DQN (Deep Q-Network)
     dqn = DQN()
-    # Create a ReplayBuffer
-    replay_buffer = ReplayBuffer()
-    rb_batch_size = 50
+
     # Loop over episodes
     counter = 0 #TODO
     losses = []
     while True:
-        if counter == 5:#TODO
+        if counter == 1:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -213,10 +184,7 @@ if __name__ == "__main__":
         for step_num in range(20):
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
-            replay_buffer.add(transition)
-            if len(replay_buffer) < rb_batch_size:
-                continue
-
+            loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
             losses.append(np.log(loss)) # y axis should have log scale
             # if counter >= 15: # TODO
             #     time.sleep(0.5)
