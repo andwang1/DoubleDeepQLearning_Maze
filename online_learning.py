@@ -104,7 +104,6 @@ class DQN:
         self.optimiser.zero_grad()
         # Calculate the loss for this transition.
         loss = self._calculate_loss(transition)
-        print(loss)
         # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
         loss.backward()
         # Take one gradient step to update the Q-network.
@@ -124,6 +123,11 @@ class DQN:
         predicted_q_for_action = torch.gather(network_prediction, 1, tensor_action_index) # select for each 1x4 tensor of predictions the 1x1 tensor related to the action in the transition
         reward_tensor = torch.tensor([[reward]]) # convert reward scalar into 1x1 tensor as MSELoss takes tensors
         return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
+
+
+
+
+
 
         # print(network_prediction)
         # output_for_action = network_prediction[action]
@@ -155,7 +159,7 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot = False
+    plot = True
     # Set the random seed for both NumPy and Torch
     # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
     CID = 1
@@ -174,8 +178,10 @@ if __name__ == "__main__":
     # Loop over episodes
     counter = 0 #TODO
     losses = []
+    time_steps = []
+    initial_time = False
     while True:
-        if counter == 1:#TODO
+        if counter == 25:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -184,19 +190,41 @@ if __name__ == "__main__":
         for step_num in range(20):
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
+            if initial_time is False:
+                initial_time = time.time()
             loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
-            losses.append(np.log(loss)) # y axis should have log scale
+            time_steps.append(round((time.time() - initial_time) * 1000)) #time taken in milliseconds
+            # losses.append(np.log(loss)) # y axis should have log scale
+            losses.append(loss)  # abs loss
             # if counter >= 15: # TODO
             #     time.sleep(0.5)
 
+    # Reset so time starts at 0, take the time equal to 0 before the first training
+    time_steps = np.array(time_steps)
+    time_steps = time_steps - time_steps[0]
+    rb_batch_size = 50
+
     if plot:
-        ax = sns.lineplot(range(1, len(losses) + 1), losses)
-        plt.xlim([1, len(losses) + 1]) # make the x axis start at 1
-        for step_num in range(len(losses) + 1):
-            if step_num % 20 == 0 and step_num != len(losses):
-                ax.axvline(step_num, ls="--")
+        ax1 = sns.lineplot(range(1, len(losses) + 1), losses)
+        ax1.set_xlim([1, len(losses) + 1]) # make the x axis start at 1
+        ax1.set_xlabel("No. of steps")
+        plt.ylabel("log(loss)")
+
+        # time axis
+        ax2 = ax1.twiny()
+        time_labels_per_episode = [time_steps[i] for i in range(0, len(losses), rb_batch_size)]
+        time_labels_per_episode.append(time_steps[-1])
+        print(time_labels_per_episode)
+        time_labels_positions = [i for i in range(0, len(losses), rb_batch_size)]
+        time_labels_positions.append(len(losses))
+        ax2.set_xticks(time_labels_positions)
+        ax2.set_xticklabels(time_labels_per_episode)
+        ax2.set_xlabel('Time (ms)')
+        ax2.set_xlim(ax1.get_xlim())
+
+        for step_num in range(0, len(losses), 20):
+            if step_num == len(losses):
+                break
+            ax1.axvline(step_num, ls="--")
 
         plt.show()
-
-
-
