@@ -99,11 +99,11 @@ class DQN:
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
-    def train_q_network_batch(self, batch_transitions):
+    def train_q_network_batch(self, transitions):
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
         # Create input tensor from batch inputs
-
+        current_states, actions, rewards, next_states = transitions
         # Calculate the loss for this transition.
         loss = self._calculate_loss(transition)
         print(loss)
@@ -171,12 +171,13 @@ class ReplayBuffer:
         rewards = []
         for _ in range(batch_size):
             transition = self.replay_buffer[np.random.randint(len(self) + 1)]
-            current_states.append(transition[0]) # 0x2
-            actions.append([transition[1]]) # 0x1
-            rewards.append([transition[2]]) # 0x1
-            next_states.append(transition[3]) #0x1
+            current_states.append(transition[0]) # 1x2
+            actions.append([transition[1]]) # 1x1
+            rewards.append([transition[2]]) # 1x1
+            next_states.append(transition[3]) # 1x2
+        return np.array(current_states), np.array(actions), np.array(rewards), np.array(next_states)
 
-        return [self.replay_buffer[np.random.randint(len(self) + 1)] for _ in range(batch_size)]
+        # return [self.replay_buffer[np.random.randint(len(self) + 1)] for _ in range(batch_size)]
 
 
 
@@ -216,6 +217,7 @@ if __name__ == "__main__":
             replay_buffer.add(transition)
             if len(replay_buffer) < rb_batch_size:
                 continue
+            dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
 
             losses.append(np.log(loss)) # y axis should have log scale
             # if counter >= 15: # TODO
