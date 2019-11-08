@@ -98,6 +98,17 @@ class DQN:
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
+
+
+    def return_optimal_action_order(self, input_tensor):
+        network_prediction = self.q_network.forward(input_tensor)  # return tensor of 4 state value predictions, one for each action
+        prediction_np_array = network_prediction.detach().numpy().ravel() # convert into a numpy array
+        # optimal_action_order = np.argsort(prediction_np_array) # take argsort, from left to right will be smallest to largest, detach to get rid of grad in tensor
+        colour_interpolation_factors = (prediction_np_array - min(prediction_np_array)) / (max(prediction_np_array) - min(prediction_np_array))
+        return colour_interpolation_factors
+        # vectorise this into one call?
+
+
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions):
         # Set all the gradients stored in the optimiser to zero.
@@ -163,7 +174,7 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot = True
+    plot = False
     # Set the random seed for both NumPy and Torch
     # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
     CID = 1
@@ -187,7 +198,7 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if counter == 25:#TODO
+        if counter == 5:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -237,5 +248,32 @@ if __name__ == "__main__":
 
         # FIX BOTH GRAPHS y scales
         # start both x axis on 0?
+
+    # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
+
+
+    states_x_coords = np.arange(0.05, 1, 0.1)
+    # start from the top state, because cv plots from top to bottom, origin is top left
+    states_y_coords = np.arange(0.95, 0, -0.1)
+
+    colour_factors = []
+    for y_coord in states_y_coords:
+        for x_coord in states_x_coords:
+            input_tensor = torch.tensor([[x_coord, y_coord]])
+            colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+
+    print(colour_factors)
+
+    # input_tensor = torch.tensor([[0.05, 0.05]])
+    # optimal_actions = dqn.return_optimal_action_order(input_tensor)
+    # print(optimal_actions)
+
+
+
+
+
+    # put all base triangles into a list and use the action indices to select
+    # establish a colour for all and based on index assign the colour, also from list
+    #
 
 
