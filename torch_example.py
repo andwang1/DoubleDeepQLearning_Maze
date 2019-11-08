@@ -40,27 +40,32 @@ if __name__ == "__main__":
     optimiser = torch.optim.Adam(network.parameters(), lr=0.001)
 
     # Loop over training iterations For
-    for training_iteration in range(1000):
-        # Set all the gradients stored in the optimiser to zero.
-        optimiser.zero_grad()
-        # Sample a batch of size 5 from the training data
-        # NOTE: when just training on a single example on each iteration), the NumPy array (and Torch tensor) still needs to have two dimensions: the batch dimension, and the data dimension. And in this case, the batch dimension would be 1, instead of 5. This can be done by using the torch.unsqueeze() function.
-        batch_indices = np.random.choice(range(100), 5)
-        batch_inputs = input_data[batch_indices]
-        batch_labels = label_data[batch_indices]
-        # Convert the NumPy array into a Torch tensor
-        batch_input_tensor = torch.tensor(batch_inputs)
-        batch_labels_tensor = torch.tensor(batch_labels)
-        # Do a forward pass of the network using the inputs batch
-        # NOTE: when training a Q-network, you will need to find the prediction for a particular action. This can be done using the "torch.gather()" function.
-        network_prediction = network.forward(batch_input_tensor)
-        # Compute the loss based on the label's batch
-        loss = torch.nn.MSELoss()(network_prediction, batch_labels_tensor)
-        # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the network parameters.
-        loss.backward()
-        # Take one gradient step to update the network
-        optimiser.step()
-        # Get the loss as a scalar value
-        loss_value = loss.item()
-        # Print out the loss
-        print('loss = ' + str(loss_value))
+    # for training_iteration in range(1000): #UNCOMMENT
+    # Set all the gradients stored in the optimiser to zero.
+    optimiser.zero_grad()
+    # Sample a batch of size 5 from the training data
+    # NOTE: when just training on a single example on each iteration), the NumPy array (and Torch tensor) still needs to have two dimensions: the batch dimension, and the data dimension. And in this case, the batch dimension would be 1, instead of 5. This can be done by using the torch.unsqueeze() function.
+    batch_indices = np.random.choice(range(100), 5)
+    batch_inputs = input_data[batch_indices]
+    print(batch_inputs)
+    batch_labels = label_data[batch_indices]
+    print(batch_labels)
+    # Convert the NumPy array into a Torch tensor
+    batch_input_tensor = torch.tensor(batch_inputs)
+    print(batch_input_tensor)
+    batch_labels_tensor = torch.tensor(batch_labels)
+    print(batch_labels_tensor)
+    # Do a forward pass of the network using the inputs batch
+    # NOTE: when training a Q-network, you will need to find the prediction for a particular action. This can be done using the "torch.gather()" function.
+    network_prediction = network.forward(batch_input_tensor)
+    print(network_prediction)
+    # Compute the loss based on the label's batch
+    loss = torch.nn.MSELoss()(network_prediction, batch_labels_tensor)
+    # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the network parameters.
+    loss.backward()
+    # Take one gradient step to update the network
+    optimiser.step()
+    # Get the loss as a scalar value
+    loss_value = loss.item()
+    # Print out the loss
+    print('loss = ' + str(loss_value))

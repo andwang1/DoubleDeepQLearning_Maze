@@ -1,6 +1,7 @@
 # Import some modules from other libraries
 import numpy as np
 import torch
+import time
 
 # Import the environment module
 from environment import Environment
@@ -30,7 +31,7 @@ class Agent:
     # Function to make the agent take one step in the environment.
     def step(self):
         # Choose an action.
-        discrete_action = 0
+        discrete_action = np.random.randint(0, 4)
         # Convert the discrete action into a continuous action.
         continuous_action = self._discrete_action_to_continuous(discrete_action)
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
@@ -55,6 +56,12 @@ class Agent:
     def _discrete_action_to_continuous(self, discrete_action):
         if discrete_action == 0:  # Move right
             continuous_action = np.array([0.1, 0], dtype=np.float32)
+        elif discrete_action == 1:  # Move left
+            continuous_action = np.array([-0.1, 0], dtype=np.float32)
+        elif discrete_action == 2:  # Move up
+            continuous_action = np.array([0, 0.1], dtype=np.float32)
+        else:  # Move down
+            continuous_action = np.array([0, -0.1], dtype=np.float32)
         return continuous_action
 
 
@@ -94,6 +101,7 @@ class DQN:
         self.optimiser.zero_grad()
         # Calculate the loss for this transition.
         loss = self._calculate_loss(transition)
+        print(loss)
         # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
         loss.backward()
         # Take one gradient step to update the Q-network.
@@ -104,7 +112,26 @@ class DQN:
     # Function to calculate the loss for a particular transition.
     def _calculate_loss(self, transition):
         pass
-        # TODO
+        # MSE ERROR OF PREDICTION AND REWARD
+        state_array, action, reward, next_state = transition
+        input_data = state_array # 0x2 array
+        input_tensor = torch.tensor(input_data).unsqueeze(0) # CONVERT TO TORCH TENSOR, unsqueeze to convert from 0x2 to 1x2
+        network_prediction = self.q_network.forward(input_tensor) # return tensor of 4 state value predictions, one for each action
+        tensor_action_index = torch.tensor([[action]]) # turn action number into a 2D tensor as gather takes tensors
+        predicted_q_for_action = torch.gather(network_prediction, 1, tensor_action_index) # select for each 1x4 tensor of predictions the 1x1 tensor related to the action in the transition
+        reward_tensor = torch.tensor([[reward]]) # convert reward scalar into 1x1 tensor as MSELoss takes tensors
+        return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
+
+        # print(network_prediction)
+        # output_for_action = network_prediction[action]
+        # print(output_for_action)
+        # np_action_index = np.zeros(4, dtype=int) # create an array to then populate the action we want to pick using torch gather of form Tensor([0, 0, 1, 0]) e.g.
+        # np_action_index[action] = 1
+
+        # tensor_action_index = torch.tensor([np_action_index]).long() # turn this into a tensor as gather takes tensors
+
+        # print(action)
+        # print(predicted_q_for_action)
 
 
 # Main entry point
@@ -112,7 +139,7 @@ if __name__ == "__main__":
 
     # Set the random seed for both NumPy and Torch
     # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
-    CID = 123456
+    CID = 1
     np.random.seed(CID)
     torch.manual_seed(CID)
 
@@ -126,10 +153,19 @@ if __name__ == "__main__":
     dqn = DQN()
 
     # Loop over episodes
+    counter = 0 #TODO
     while True:
+        if counter == 20:#TODO
+            break
+        counter +=1#TODO
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode. The episode length here is 20.
         for step_num in range(20):
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
+            loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
+            if counter >= 15: # TODO
+                time.sleep(0.5)
+
+
