@@ -198,7 +198,7 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if counter == 5:#TODO
+        if counter == 25:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -262,8 +262,11 @@ if __name__ == "__main__":
             input_tensor = torch.tensor([[x_coord, y_coord]])
             colour_factors.append(dqn.return_optimal_action_order(input_tensor))
 
-    print(colour_factors)
+    from q_visualisation import QVisualisation
 
+    qv = QVisualisation(True, 1000)
+    qv.draw(colour_factors)
+    time.sleep(5)
     # input_tensor = torch.tensor([[0.05, 0.05]])
     # optimal_actions = dqn.return_optimal_action_order(input_tensor)
     # print(optimal_actions)
