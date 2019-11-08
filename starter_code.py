@@ -2,6 +2,8 @@
 import numpy as np
 import torch
 import time
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 # Import the environment module
 from environment import Environment
@@ -136,7 +138,7 @@ class DQN:
 
 # Main entry point
 if __name__ == "__main__":
-
+    plot = False
     # Set the random seed for both NumPy and Torch
     # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
     CID = 1
@@ -146,7 +148,7 @@ if __name__ == "__main__":
     # Create an environment.
     # If display is True, then the environment will be displayed after every agent step. This can be set to False to speed up training time. The evaluation in part 2 of the coursework will be done based on the time with display=False.
     # Magnification determines how big the window will be when displaying the environment on your monitor. For desktop PCs, a value of 1000 should be about right. For laptops, a value of 500 should be about right. Note that this value does not affect the underlying state space or the learning, just the visualisation of the environment.
-    environment = Environment(display=True, magnification=1000)
+    environment = Environment(display=False, magnification=1000)
     # Create an agent
     agent = Agent(environment)
     # Create a DQN (Deep Q-Network)
@@ -154,8 +156,9 @@ if __name__ == "__main__":
 
     # Loop over episodes
     counter = 0 #TODO
+    losses = []
     while True:
-        if counter == 20:#TODO
+        if counter == 5:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -165,7 +168,18 @@ if __name__ == "__main__":
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
             loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
-            if counter >= 15: # TODO
-                time.sleep(0.5)
+            losses.append(loss)
+            # if counter >= 15: # TODO
+            #     time.sleep(0.5)
+
+    if plot:
+        ax = sns.lineplot(range(1, len(losses) + 1), losses)
+        plt.xlim([1, len(losses) + 1]) # make the x axis start at 1
+        for step_num in range(len(losses) + 1):
+            if step_num % 20 == 0 and step_num != len(losses):
+                ax.axvline(step_num, ls="--")
+
+        plt.show()
+
 
 
