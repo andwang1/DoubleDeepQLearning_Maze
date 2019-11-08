@@ -103,10 +103,14 @@ class DQN:
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
         # Create input tensor from batch inputs
-        current_states, actions, rewards, next_states = transitions
+        tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states = transitions
+        network_prediction = self.q_network.forward(tensor_current_states)  # return tensor of 4 state value predictions, one for each action
+        # print(network_prediction)
+        predicted_q_values_for_action = torch.gather(network_prediction, 1, tensor_actions)
+        # print(predicted_q_values_for_action)
+        # print(tensor_rewards)
         # Calculate the loss for this transition.
-        loss = self._calculate_loss(transition)
-        print(loss)
+        loss = torch.nn.MSELoss()(predicted_q_values_for_action, tensor_rewards)
         # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
         loss.backward()
         # Take one gradient step to update the Q-network.
@@ -114,19 +118,6 @@ class DQN:
         # Return the loss as a scalar
         return loss.item()
 
-    # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
-    def train_q_network(self, transition):
-        # Set all the gradients stored in the optimiser to zero.
-        self.optimiser.zero_grad()
-        # Calculate the loss for this transition.
-        loss = self._calculate_loss(transition)
-        print(loss)
-        # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
-        loss.backward()
-        # Take one gradient step to update the Q-network.
-        self.optimiser.step()
-        # Return the loss as a scalar
-        return loss.item()
 
     # Function to calculate the loss for a particular transition.
     def _calculate_loss(self, transition):
@@ -140,17 +131,6 @@ class DQN:
         predicted_q_for_action = torch.gather(network_prediction, 1, tensor_action_index) # select for each 1x4 tensor of predictions the 1x1 tensor related to the action in the transition
         reward_tensor = torch.tensor([[reward]]) # convert reward scalar into 1x1 tensor as MSELoss takes tensors
         return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
-
-        # print(network_prediction)
-        # output_for_action = network_prediction[action]
-        # print(output_for_action)
-        # np_action_index = np.zeros(4, dtype=int) # create an array to then populate the action we want to pick using torch gather of form Tensor([0, 0, 1, 0]) e.g.
-        # np_action_index[action] = 1
-
-        # tensor_action_index = torch.tensor([np_action_index]).long() # turn this into a tensor as gather takes tensors
-
-        # print(action)
-        # print(predicted_q_for_action)
 
 
 class ReplayBuffer:
@@ -170,12 +150,12 @@ class ReplayBuffer:
         actions = []
         rewards = []
         for _ in range(batch_size):
-            transition = self.replay_buffer[np.random.randint(len(self) + 1)]
+            transition = self.replay_buffer[np.random.randint(len(self))]
             current_states.append(transition[0]) # 1x2
             actions.append([transition[1]]) # 1x1
             rewards.append([transition[2]]) # 1x1
             next_states.append(transition[3]) # 1x2
-        return np.array(current_states), np.array(actions), np.array(rewards), np.array(next_states)
+        return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(next_states) # MSE needs float values
 
         # return [self.replay_buffer[np.random.randint(len(self) + 1)] for _ in range(batch_size)]
 
@@ -204,8 +184,10 @@ if __name__ == "__main__":
     # Loop over episodes
     counter = 0 #TODO
     losses = []
+    time_steps = []
+    initial_time = False
     while True:
-        if counter == 5:#TODO
+        if counter == 25:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
@@ -214,23 +196,46 @@ if __name__ == "__main__":
         for step_num in range(20):
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
+            if initial_time is False:
+                initial_time = time.time()
             replay_buffer.add(transition)
             if len(replay_buffer) < rb_batch_size:
                 continue
-            dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
-
-            losses.append(np.log(loss)) # y axis should have log scale
+            loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
+            time_steps.append(round((time.time() - initial_time) * 1000))  # time taken in milliseconds
+            # losses.append(np.log(loss)) # y axis should have log scale
+            losses.append(loss) # abs loss
             # if counter >= 15: # TODO
             #     time.sleep(0.5)
 
     if plot:
-        ax = sns.lineplot(range(1, len(losses) + 1), losses)
-        plt.xlim([1, len(losses) + 1]) # make the x axis start at 1
-        for step_num in range(len(losses) + 1):
-            if step_num % 20 == 0 and step_num != len(losses):
-                ax.axvline(step_num, ls="--")
+        time_steps = np.array(time_steps)
+        time_steps = time_steps - time_steps[0]
+        # print(len(losses))
+        # print(len(losses) + rb_batch_size + 1)
+        # print(rb_batch_size)
+        ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
+        ax1.set_xlim([rb_batch_size, len(losses) + rb_batch_size]) # make the x axis start at 1
+        ax1.set_xlabel("No. of steps")
+        plt.ylabel("log(loss)")
+
+        # time axis
+        ax2 = ax1.twiny()
+        time_labels_per_episode = time_steps
+
+        # print(time_labels_per_episode)
+        time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
+        ax2.set_xticks(time_labels_positions)
+        ax2.set_xticklabels(time_labels_per_episode)
+        ax2.set_xlabel('Time (ms)')
+        ax2.set_xlim(ax1.get_xlim())
+
+        for step_num in range(0, len(losses) + rb_batch_size, 20):
+            ax1.axvline(step_num, ls="--")
 
         plt.show()
 
+        # FIX BOTH GRAPHS y scales
+        # start both x axis on 0?
 
 
