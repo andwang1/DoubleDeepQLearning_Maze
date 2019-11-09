@@ -1,18 +1,13 @@
 import cv2
 import numpy as np
-import time
-#
+
 
 class QVisualisation:
-    def __init__(self, display, magnification):
-        # Set whether the environment should be displayed after every step
-        self.display = display
+    def __init__(self, magnification):
         # Set the magnification factor of the display
         self.magnification = magnification
         # Set the initial state of the goal
         self.goal_state = np.array([0.75, 0.85], dtype=np.float32)
-        # Set the space which the obstacle occupies
-        # self.obstacle_space = np.array([[0.3, 0.5], [0.3, 0.6]], dtype=np.float32)
         # Set the width and height of the environment
         self.width = 1.0
         self.height = 1.0
@@ -20,30 +15,29 @@ class QVisualisation:
         self.image = np.zeros([int(self.magnification * self.height), int(self.magnification * self.width), 3], dtype=np.uint8)
         self.image.fill(0)
         # Create base triangles for each square
-        self.top_triangle = np.array([[0, 0], [0.1, 0], [0.05, 0.05]]) * self.magnification
-        self.bottom_triangle = np.array([[0.1, 0.1], [0, 0.1], [0.05, 0.05]]) * self.magnification
-        self.right_triangle = np.array([[0.1, 0.1], [0.1, 0], [0.05, 0.05]]) * self.magnification
-        self.left_triangle = np.array([[0, 0], [0, 0.1], [0.05, 0.05]]) * self.magnification
+        self.top_triangle = np.array([[0, 0], [0.1, 0], [0.05, 0.05]])
+        self.bottom_triangle = np.array([[0.1, 0.1], [0, 0.1], [0.05, 0.05]])
+        self.right_triangle = np.array([[0.1, 0.1], [0.1, 0], [0.05, 0.05]])
+        self.left_triangle = np.array([[0, 0], [0, 0.1], [0.05, 0.05]])
         # Create offset triangles to add to the base triangles
-        self.right_push = np.array([[0.1,0],[0.1,0],[0.1,0]]) * self.magnification
-        self.down_push = np.array([[0,0.1],[0,0.1],[0,0.1]]) * self.magnification
-        # Set colours to interpolate between
+        self.right_push = np.array([[0.1, 0], [0.1, 0], [0.1, 0]])
+        self.down_push = np.array([[0, 0.1], [0, 0.1], [0, 0.1]])
+        # Create colours to interpolate between
         self.max_colour = np.array([0, 255, 255]) # technically not needed
         self.min_colour = np.array([153, 0, 0])
-        self.black_colour = np.array([0, 0, 0])
-        self.colour_difference = np.array([-153, 255, 255]) # will be doing self.min_colour + self.colour_difference * colour interpolations to get the colours for each triangle
-
+        # For interpolation, will be multiplying a colour difference with a number [0,1]
+        self.colour_difference = np.array([-153, 255, 255])
 
     def return_offset_triangles(self, x_offset, y_offset):
-        yield (self.right_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
-        yield (self.left_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
-        yield (self.top_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
-        yield (self.bottom_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
+        yield ((self.right_triangle + self.right_push * x_offset + self.down_push * y_offset) * self.magnification).astype(int)
+        yield ((self.left_triangle + self.right_push * x_offset + self.down_push * y_offset) * self.magnification).astype(int)
+        yield ((self.top_triangle + self.right_push * x_offset + self.down_push * y_offset) * self.magnification).astype(int)
+        yield ((self.bottom_triangle + self.right_push * x_offset + self.down_push * y_offset) * self.magnification).astype(int)
 
-    def return_interpolated_colour(self, colour_factor):
-        return self.min_colour + self.colour_difference * colour_factor
+    def return_interpolated_colour(self, factor):
+        return self.min_colour + self.colour_difference * factor
 
-    def draw(self, colour_interpolations, show_goal = False):
+    def draw(self, colour_interpolations: list, show_goal=False):
         # Colour interpolations are given in the order of actions: right left up down
         colour_interpolations = iter(colour_interpolations)
         for y_coord in range(10):
@@ -63,7 +57,7 @@ class QVisualisation:
                     # cv2.polylines(self.image, triangle,
                     #               self.return_interpolated_colour(colour_factor))  # draw triangle borders
 
-        # SHOW GOAL
+        # Show goal state
         if show_goal:
             goal_centre = (int(self.goal_state[0] * self.magnification), int((1 - self.goal_state[1]) * self.magnification))
             goal_radius = int(0.02 * self.magnification)
@@ -77,7 +71,6 @@ class QVisualisation:
             print(startpoint)
             print(endpoint)
             cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
-
         for y_coord in np.arange(0.1, 1, 0.1):
             startpoint = (0, int(y_coord * self.magnification))
             endpoint = (int(self.width * self.magnification), int(y_coord * self.magnification))

@@ -266,7 +266,7 @@ if __name__ == "__main__":
 
     from q_visualisation import QVisualisation
 
-    qv = QVisualisation(True, 1000)
+    qv = QVisualisation(1000)
     qv.draw(colour_factors)
     time.sleep(15)
     # input_tensor = torch.tensor([[0.05, 0.05]])
