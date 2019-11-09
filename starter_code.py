@@ -34,7 +34,7 @@ class Agent:
     # Function to make the agent take one step in the environment.
     def step(self, action:int = False):
         # Choose an action.
-        if action:
+        if action is not False:
             discrete_action = action
         else:
             discrete_action = np.random.randint(0, 4)
@@ -144,7 +144,7 @@ class DQN:
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
         predictions_np_array = network_prediction.detach().numpy().ravel()
-        return np.argmax(predictions_np_array)
+        return np.argmax(predictions_np_array), predictions_np_array # TODO
 
 class ReplayBuffer:
     def __init__(self, max_capacity=1000000):
@@ -174,7 +174,7 @@ class ReplayBuffer:
 # Main entry point
 if __name__ == "__main__":
     plot_loss = False
-    plot_qvalues = False
+    plot_qvalues = True
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 1
@@ -197,22 +197,33 @@ if __name__ == "__main__":
     initial_time = False
     state_path = []
     while True:
-        if episode_counter == 15:
+        if episode_counter == 55:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(10):
+        for step_num in range(30):
             # In this episode we will choose the greedy action instead of the random actions.
-            if episode_counter == 14:
-                # Get the current state
+            if episode_counter == 54:
+                if plot_qvalues:
+                    states_x_coords = np.arange(0.05, 1, 0.1)
+                    states_y_coords = np.arange(0.95, 0, -0.1)
+                    colour_factors = []
+                    for y_coord in states_y_coords:
+                        for x_coord in states_x_coords:
+                            input_tensor = torch.tensor([[x_coord, y_coord]])
+                            colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+                # Make the greedy action step
                 current_state = agent.state
                 state_path.append(current_state)
-                greedy_action = dqn.return_greedy_action(current_state)
+                greedy_action, pred = dqn.return_greedy_action(current_state) # TODO remove pred
+                print(greedy_action, pred)
                 transition = agent.step(greedy_action)
+                print(transition)
             else:
+                print("elseloop")
                 transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
@@ -259,15 +270,15 @@ if __name__ == "__main__":
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
-        # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
-        states_x_coords = np.arange(0.05, 1, 0.1)
-        states_y_coords = np.arange(0.95, 0, -0.1)
-
-        colour_factors = []
-        for y_coord in states_y_coords:
-            for x_coord in states_x_coords:
-                input_tensor = torch.tensor([[x_coord, y_coord]])
-                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+        # # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
+        # states_x_coords = np.arange(0.05, 1, 0.1)
+        # states_y_coords = np.arange(0.95, 0, -0.1)
+        #
+        # colour_factors = []
+        # for y_coord in states_y_coords:
+        #     for x_coord in states_x_coords:
+        #         input_tensor = torch.tensor([[x_coord, y_coord]])
+        #         colour_factors.append(dqn.return_optimal_action_order(input_tensor))
 
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
@@ -275,8 +286,6 @@ if __name__ == "__main__":
 
     if plot_state_path:
         pv = PathVisualisation(1000)
-        print(state_path)
         pv.draw(state_path)
-        time.sleep(5)
-
-    # print(state_path)
+        print(state_path)
+        time.sleep(15)
