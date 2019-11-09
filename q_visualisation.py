@@ -43,19 +43,13 @@ class QVisualisation:
         for y_coord in range(10):
             for x_coord in range(10):
                 interpolation = next(colour_interpolations)
-                # count = 0
                 for colour_factor, triangle in zip(interpolation, self.return_offset_triangles(x_coord, y_coord)):
-                    # print(count)
-                    # count += 1
-                    # colour = self.return_interpolated_colour(colour_factor)
-                    # print(colour)
-                    cv2.fillConvexPoly(self.image, triangle, self.return_interpolated_colour(colour_factor)) # draw triangles
-                    polylinepts = np.array([triangle[0], triangle[-1], triangle[1], triangle[-1]]) # start and end points of the lines, outer point to inner point
-                    # print(polylinepts)
-                    cv2.polylines(self.image, [polylinepts], True, (0, 0, 0), 3)  # draw triangle borders, polylines expects a list that contains a numpy array with coords
-                    # cv2.polylines(self.image, triangle.reshape(-1,1,2), True, (0, 0, 0), 3) # draw triangle borders
-                    # cv2.polylines(self.image, triangle,
-                    #               self.return_interpolated_colour(colour_factor))  # draw triangle borders
+                    # ConvexPoly requires a 2D numpy array for the triangle coords, and a 1D numpy array for colours
+                    cv2.fillConvexPoly(self.image, triangle, self.return_interpolated_colour(colour_factor))
+                    # Polylines requires a list containing a single 2D np array, colours in a tuple
+                    # The rows are start and end points of the lines, triangle outer point to inner point
+                    polylinepts = np.array([triangle[0], triangle[-1], triangle[1], triangle[-1]])
+                    cv2.polylines(self.image, [polylinepts], True, (0, 0, 0), 3)
 
         # Show goal state
         if show_goal:
@@ -64,12 +58,11 @@ class QVisualisation:
             goal_colour = (0, 255, 0)
             cv2.circle(self.image, goal_centre, goal_radius, goal_colour, cv2.FILLED)
 
-        # Draw grid lines
+        # Draw white grid lines
         for x_coord in np.arange(0.1, 1, 0.1):
             startpoint = (int(x_coord * self.magnification), 0)
             endpoint = (int(x_coord * self.magnification), int(self.height * self.magnification))
-            print(startpoint)
-            print(endpoint)
+            # cv line requires the start and endpoints to be given as tuples of ints as positional parameters
             cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
         for y_coord in np.arange(0.1, 1, 0.1):
             startpoint = (0, int(y_coord * self.magnification))
@@ -82,7 +75,7 @@ class QVisualisation:
         cv2.waitKey(1)
 
 if __name__ == "__main__":
-    qv = QVisualisation(True, 1000)
+    qv = QVisualisation(1000)
     # triangle = qv.offset_triangles(1, 1)
 
     # print(qv.return_colour_scheme(0.5))
