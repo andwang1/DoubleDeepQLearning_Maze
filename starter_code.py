@@ -32,7 +32,7 @@ class Agent:
         self.total_reward = 0.0
 
     # Function to make the agent take one step in the environment.
-    def step(self, action:int = False):
+    def step(self, action: int = False):
         # Choose an action.
         if action is not False:
             discrete_action = action
@@ -144,7 +144,7 @@ class DQN:
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
         predictions_np_array = network_prediction.detach().numpy().ravel()
-        return np.argmax(predictions_np_array), predictions_np_array # TODO
+        return np.argmax(predictions_np_array)
 
 class ReplayBuffer:
     def __init__(self, max_capacity=1000000):
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(30):
+        for step_num in range(50):
             # In this episode we will choose the greedy action instead of the random actions.
             if episode_counter == 54:
                 if plot_qvalues:
@@ -218,12 +218,9 @@ if __name__ == "__main__":
                 # Make the greedy action step
                 current_state = agent.state
                 state_path.append(current_state)
-                greedy_action, pred = dqn.return_greedy_action(current_state) # TODO remove pred
-                print(greedy_action, pred)
+                greedy_action = dqn.return_greedy_action(current_state)
                 transition = agent.step(greedy_action)
-                print(transition)
             else:
-                print("elseloop")
                 transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
@@ -287,5 +284,4 @@ if __name__ == "__main__":
     if plot_state_path:
         pv = PathVisualisation(1000)
         pv.draw(state_path)
-        print(state_path)
         time.sleep(15)

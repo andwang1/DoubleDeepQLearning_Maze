@@ -39,8 +39,6 @@ class PathVisualisation:
         for index, start_coordinates in enumerate(line_coordinates[:-1]):
                 colour = self.return_interpolated_colour(index / (len(line_coordinates) - 2))
                 end_coordinates = line_coordinates[index + 1]
-                print(start_coordinates)
-                print(end_coordinates)
                 start_x, start_y = round(start_coordinates[0], 2), 1 - round(start_coordinates[1], 2)
                 end_x, end_y = round(end_coordinates[0], 2), 1 - round(end_coordinates[1], 2)
                 # Need to flip y-values as origin is top left corner
@@ -48,10 +46,6 @@ class PathVisualisation:
                 # end_x, end_y = end_coordinates
                 # Need to flip y-values as origin is top left corner
                 end_tuple = (int(end_x * self.magnification), int(end_y * self.magnification))
-                print(start_tuple)
-                print(end_tuple)
-                line_counter += 1
-                print(line_counter)
                 # cv line requires the start and endpoints to be given as tuples of ints as positional parameters
                 cv2.line(self.image, start_tuple, end_tuple, colour, 3)
 
