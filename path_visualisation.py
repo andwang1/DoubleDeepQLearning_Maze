@@ -35,18 +35,6 @@ class PathVisualisation:
             endpoint = (int(self.width * self.magnification), int(y_coord * self.magnification))
             cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
 
-        print(line_coordinates)
-        # for index in range(len(line_coordinates) - 1):
-        #     colour = self.return_interpolated_colour(index / (len(line_coordinates) - 2))
-        #     if index == 0:
-        #         # plot start state circle
-        #         pass
-        #     start_coordinates = (line_coordinates[index] * self.magnification).astype(int)
-        #     start_tuple = tuple([start_coordinates[i] for i in range(len(start_coordinates))])
-        #     end_coordinates = (line_coordinates[index + 1] * self.magnification).astype(int)
-        #     end_tuple = tuple([end_coordinates[i] for i in range(len(end_coordinates))])
-        #     cv2.line(self.image, start_tuple, end_tuple, colour, 2)
-        # cv2.line(self.image, (int(0.15 * self.magnification), int((1 - 0.15) * self.magnification)), (int(0.15 * self.magnification), int(0.25 * self.magnification)), (255,0,0), 2)
         line_counter = 0
         for index, start_coordinates in enumerate(line_coordinates[:-1]):
                 colour = self.return_interpolated_colour(index / (len(line_coordinates) - 2))
@@ -67,14 +55,23 @@ class PathVisualisation:
                 # cv line requires the start and endpoints to be given as tuples of ints as positional parameters
                 cv2.line(self.image, start_tuple, end_tuple, colour, 3)
 
+        # Draw start and end state circles
+        start_coordinates = line_coordinates[0]
+        end_coordinates = line_coordinates[-1]
+        start_x, start_y = round(start_coordinates[0], 2), 1 - round(start_coordinates[1], 2)
+        end_x, end_y = round(end_coordinates[0], 2), 1 - round(end_coordinates[1], 2)
+        start_centre = (int(start_x * self.magnification), int(start_y * self.magnification))
+        end_centre = (int(end_x * self.magnification), int(end_y * self.magnification))
+        radius = int(0.02 * self.magnification)
+        cv2.circle(self.image, start_centre, radius, (0, 0, 255), cv2.FILLED)
+        cv2.circle(self.image, end_centre, radius, (0, 255, 0), cv2.FILLED)
+
         # Show goal state
         if show_goal:
             goal_centre = (int(self.goal_state[0] * self.magnification), int((1 - self.goal_state[1]) * self.magnification))
             goal_radius = int(0.02 * self.magnification)
             goal_colour = (0, 255, 0)
             cv2.circle(self.image, goal_centre, goal_radius, goal_colour, cv2.FILLED)
-
-        # Draw first and last state circles
 
         # Show the image
         cv2.imshow("Environment", self.image)
