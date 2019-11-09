@@ -174,7 +174,7 @@ class ReplayBuffer:
 # Main entry point
 if __name__ == "__main__":
     plot_loss = False
-    plot_qvalues = True
+    plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 1

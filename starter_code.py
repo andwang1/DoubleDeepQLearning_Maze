@@ -23,6 +23,7 @@ class Agent:
         self.total_reward = None
         # Reset the agent.
         self.reset()
+        self.epsilon = 1.
 
     # Function to reset the environment, and set the agent to its initial state. This should be done at the start of every episode.
     def reset(self):
@@ -70,6 +71,11 @@ class Agent:
             continuous_action = np.array([0, -0.1], dtype=np.float32)
         return continuous_action
 
+    def epsilon_greedy_policy(self, greedy_action):
+        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+            return np.random.randint(0, 4)
+        else:
+            return greedy_action
 
 # The Network class inherits the torch.nn.Module class, which represents a neural network.
 class Network(torch.nn.Module):
@@ -153,8 +159,9 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
-        predictions_np_array = network_prediction.detach().numpy().ravel()
-        return np.argmax(predictions_np_array)
+        print(network_prediction)
+        print(int(network_prediction.argmax()))
+        return int(network_prediction.argmax())
 
     def return_greedy_actions_tensor(self, tensor_states):
         tensor_network_predictions = self.q_network.forward(tensor_states)
@@ -184,6 +191,9 @@ class ReplayBuffer:
     def add(self, transition_tuple):
         self.replay_buffer.append(transition_tuple)
 
+    def clear(self):
+        self.replay_buffer.clear()
+
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
     def generate_batch(self, batch_size=50):
         current_states = []
@@ -201,120 +211,114 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = True
-    plot_qvalues = False
+    plot_loss = False
+    plot_qvalues = True
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 1
     np.random.seed(CID)
     torch.manual_seed(CID)
-    # Create an environment.
     environment = Environment(display=False, magnification=1000)
-    # Create an agent
     agent = Agent(environment)
-    # Create a DQN (Deep Q-Network)
-    dqn = DQN()
     # Create a ReplayBuffer and batch size
     replay_buffer = ReplayBuffer()
     rb_batch_size = 50
+    episode_rewards = []
+    delta_range = np.arange(0.99, 1.01, 0.01)
+    for delta in delta_range:
+        # Create a new DQN (Deep Q-Network)
+        dqn = DQN()
+        dqn.copy_weights_to_target_dqn()
+        # Clear the replay_buffer
+        replay_buffer.clear()
+        # Reinitialise agent epsilon
+        agent.epsilon = 1.
 
-    # Loop over episodes
-    episode_counter = 0
-    total_steps_counter = 0
-    losses = []
-    time_steps = []
-    initial_time = False
-    state_path = []
-    # initialise target network to same weights as our q network
-    dqn.copy_weights_to_target_dqn()
-    while True:
-        if episode_counter == 25:
-            break
-        episode_counter += 1
+        episode_counter = 0
+        total_steps_counter = 0
+        rewards = 0
+        while True:
+            print("episode")
+            if episode_counter == 3:
+                break
+            episode_counter += 1
 
-        # Every 20 steps update target DQN
-        if total_steps_counter % 20 == 0:
-            dqn.copy_weights_to_target_dqn()
+            # Reset the environment for the start of the episode.
+            agent.reset()
+            # Loop over steps within this episode.
+            for step_num in range(250):
+                total_steps_counter += 1
+                # Every 20 steps update target DQN
+                if total_steps_counter % 20 == 0:
+                    dqn.copy_weights_to_target_dqn()
+                    print("targetupdate")
+                # In this episode we will choose the greedy action instead of the random actions.
+                # reduce epsilon by delta afterwards, if delta = 1, continue
+                current_state = agent.state
+                # should we make this return the greedy policy from the target network or the normal network? should be normal
+                greedy_action = dqn.return_greedy_action(current_state)
+                epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
+                # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
+                # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
+                transition = agent.step(epsilon_greedy_action)
+                print(transition)
+                if agent.epsilon > 0:
+                    # print(agent.epsilon)
+                    # Lower bound of epsilon is 0, technically not necessary with the random implementation
+                    agent.epsilon = max(agent.epsilon - delta, 0)
+                # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
+                replay_buffer.add(transition)
+                if len(replay_buffer) < rb_batch_size:
+                    continue
+                # Using target network
+                loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
+                # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards
+                if episode_counter >= 2:
+                    rewards += transition[2]  # reward
 
-        # Reset the environment for the start of the episode.
-        agent.reset()
-        # Loop over steps within this episode.
-        for step_num in range(20):
-            total_steps_counter += 1
-            # In this episode we will choose the greedy action instead of the random actions.
-            if plot_state_path:
-                if episode_counter == 54:
-                    if plot_qvalues:
-                        states_x_coords = np.arange(0.05, 1, 0.1)
-                        states_y_coords = np.arange(0.95, 0, -0.1)
-                        colour_factors = []
-                        for y_coord in states_y_coords:
-                            for x_coord in states_x_coords:
-                                input_tensor = torch.tensor([[x_coord, y_coord]])
-                                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
-                    # Make the greedy action step
-                    current_state = agent.state
-                    state_path.append(current_state)
-                    greedy_action = dqn.return_greedy_action(current_state)
-                    transition = agent.step(greedy_action)
-                else:
-                    transition = agent.step()
-            else:
-                transition = agent.step()
-            # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
-            if initial_time is False:
-                initial_time = time.time()
-            replay_buffer.add(transition)
-            if len(replay_buffer) < rb_batch_size:
-                continue
-            loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
-            # Measure time between steps (and training) in milliseconds for plotting
-            time_steps.append(round((time.time() - initial_time) * 1000))
-            # losses.append(np.log(loss)) # log loss
-            losses.append(loss)  # abs loss
-            # If want to display the environment slower after certain number of episode
-            # if counter >= 15:
-            #     time.sleep(0.5)
+        episode_rewards.append(rewards)
+
+    print(episode_rewards)
+    # for 0.01 steps
+    # episode_rewards = [5.848978757858276, 10.8709907582871, 12.456115623461393, 12.589589089155197, 12.859656751155853, 13.40407518063703, 13.221232344853071, 13.818518986889472, 13.56906167695361, 13.203376203775406, 13.85190405506765, 13.551904057609228, 13.85190405506765, 13.610482747648533, 13.71048286601063, 13.85190405506765, 13.901264389940849, 13.901264389940849, 13.71048274680134, 13.85190405506765, 13.85190405506765, 13.85190405506765, 13.85190405506765, 13.901264389940849, 13.901264389940849, 13.61842177340823, 13.42764013026872, 13.901264389940849, 13.85190405506765, 13.901264389940849, 13.85190405506765, 13.801264390788042, 12.491539865732193, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.85190405506765, 13.75984308167454, 13.901264389940849, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.801264390788042, 13.901264509150138, 13.901264509150138, 13.901264389940849, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264628359428, 13.901264628359428, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264509150138, 13.901264509150138, 13.759843200883829, 13.901264509150138, 13.901264389940849, 13.759843409500085, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264747568717, 13.93177237171804, 13.901264389940849, 13.901264628359428, 13.901264509150138, 13.901264509150138, 13.93177237171804, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264509150138, 13.901264389940849, 13.901264747568717, 13.901264509150138, 13.901264628359428, 13.931772610136619, 13.901264389940849, 13.901264389940849, 13.851904293486228, 13.94577612538015, 13.901264389940849, 13.901264747568717, 13.94577600617086, 13.93177249092733, 13.901264389940849, 13.901264747568717, 13.901264509150138, 13.901264389940849, 13.931772610136619]
+
 
     # Plotting the loss functions as function of steps and time
     if plot_loss:
-        time_steps = np.array(time_steps)
-        time_steps = time_steps - time_steps[0]
+        # Delta axis
+        ax1 = sns.lineplot(delta_range, episode_rewards)
 
-        # Step axis
-        ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
-        ax1.set_xlim([rb_batch_size, len(losses) + rb_batch_size])  # make the x axis start at 1
-        ax1.set_xlabel("No. of steps")
+        ax1.set_xlabel("Delta value")
 
         # Time axis
-        ax2 = ax1.twiny()
-        time_labels_per_episode = time_steps
-        time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
-        ax2.set_xticks(time_labels_positions)
-        ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (ms)')
-        ax2.set_xlim(ax1.get_xlim())
+        # ax2 = ax1.twiny()
+        # time_labels_per_episode = time_steps
+        # time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
+        # ax2.set_xticks(time_labels_positions)
+        # ax2.set_xticklabels(time_labels_per_episode)
+        # ax2.set_xlabel('Time (ms)')
+        # ax2.set_xlim(ax1.get_xlim())
 
-        plt.ylabel("log(loss)")
+        plt.ylabel("Episode rewards")
 
         # Add vertical lines
-        for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--")
+        # for step_num in range(500, len(losses) + 500, 20):
+        #     ax1.axvline(step_num, ls="--")
         plt.show()
 
         # start both x axis on 0?
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
-        # # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
-        # states_x_coords = np.arange(0.05, 1, 0.1)
-        # states_y_coords = np.arange(0.95, 0, -0.1)
-        #
-        # colour_factors = []
-        # for y_coord in states_y_coords:
-        #     for x_coord in states_x_coords:
-        #         input_tensor = torch.tensor([[x_coord, y_coord]])
-        #         colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+        # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
+        states_x_coords = np.arange(0.05, 1, 0.1)
+        states_y_coords = np.arange(0.95, 0, -0.1)
+
+        colour_factors = []
+        for y_coord in states_y_coords:
+            for x_coord in states_x_coords:
+                input_tensor = torch.tensor([[x_coord, y_coord]])
+                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
 
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
