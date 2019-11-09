@@ -103,6 +103,7 @@ class DQN:
     def return_optimal_action_order(self, input_tensor):
         network_prediction = self.q_network.forward(input_tensor)  # return tensor of 4 state value predictions, one for each action
         prediction_np_array = network_prediction.detach().numpy().ravel() # convert into a numpy array
+        # print(prediction_np_array)
         # optimal_action_order = np.argsort(prediction_np_array) # take argsort, from left to right will be smallest to largest, detach to get rid of grad in tensor
         colour_interpolation_factors = (prediction_np_array - min(prediction_np_array)) / (max(prediction_np_array) - min(prediction_np_array))
         return colour_interpolation_factors
@@ -115,6 +116,7 @@ class DQN:
         self.optimiser.zero_grad()
         # Create input tensor from batch inputs
         tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states = transitions
+        # print("rewards", tensor_rewards)
         network_prediction = self.q_network.forward(tensor_current_states)  # return tensor of 4 state value predictions, one for each action
         # print(network_prediction)
         predicted_q_values_for_action = torch.gather(network_prediction, 1, tensor_actions)
@@ -198,13 +200,13 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if counter == 25:#TODO
+        if counter == 5:#TODO
             break
         counter +=1#TODO
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode. The episode length here is 20.
-        for step_num in range(20):
+        for step_num in range(20): # TODO
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
             if initial_time is False:
@@ -257,7 +259,7 @@ if __name__ == "__main__":
     states_y_coords = np.arange(0.95, 0, -0.1)
 
     colour_factors = []
-    for y_coord in states_y_coords:
+    for y_coord in states_y_coords: # TODO [:1]
         for x_coord in states_x_coords:
             input_tensor = torch.tensor([[x_coord, y_coord]])
             colour_factors.append(dqn.return_optimal_action_order(input_tensor))
@@ -266,7 +268,7 @@ if __name__ == "__main__":
 
     qv = QVisualisation(True, 1000)
     qv.draw(colour_factors)
-    time.sleep(5)
+    time.sleep(15)
     # input_tensor = torch.tensor([[0.05, 0.05]])
     # optimal_actions = dqn.return_optimal_action_order(input_tensor)
     # print(optimal_actions)

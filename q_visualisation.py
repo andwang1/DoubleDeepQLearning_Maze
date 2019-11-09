@@ -9,88 +9,98 @@ class QVisualisation:
         self.display = display
         # Set the magnification factor of the display
         self.magnification = magnification
-        # Set the initial state of the agent
-        self.init_state = np.array([0.15, 0.15], dtype=np.float32)
         # Set the initial state of the goal
         self.goal_state = np.array([0.75, 0.85], dtype=np.float32)
         # Set the space which the obstacle occupies
-        self.obstacle_space = np.array([[0.3, 0.5], [0.3, 0.6]], dtype=np.float32)
+        # self.obstacle_space = np.array([[0.3, 0.5], [0.3, 0.6]], dtype=np.float32)
         # Set the width and height of the environment
         self.width = 1.0
         self.height = 1.0
         # Create an image which will be used to display the environment
         self.image = np.zeros([int(self.magnification * self.height), int(self.magnification * self.width), 3], dtype=np.uint8)
-
-        # Base triangles to iterate over
+        self.image.fill(0)
+        # Create base triangles for each square
         self.top_triangle = np.array([[0, 0], [0.1, 0], [0.05, 0.05]]) * self.magnification
         self.bottom_triangle = np.array([[0.1, 0.1], [0, 0.1], [0.05, 0.05]]) * self.magnification
         self.right_triangle = np.array([[0.1, 0.1], [0.1, 0], [0.05, 0.05]]) * self.magnification
         self.left_triangle = np.array([[0, 0], [0, 0.1], [0.05, 0.05]]) * self.magnification
-
-        # Offset triangles to add
+        # Create offset triangles to add to the base triangles
         self.right_push = np.array([[0.1,0],[0.1,0],[0.1,0]]) * self.magnification
         self.down_push = np.array([[0,0.1],[0,0.1],[0,0.1]]) * self.magnification
-
-        # Colours
+        # Set colours to interpolate between
         self.max_colour = np.array([0, 255, 255]) # technically not needed
         self.min_colour = np.array([153, 0, 0])
+        self.black_colour = np.array([0, 0, 0])
         self.colour_difference = np.array([-153, 255, 255]) # will be doing self.min_colour + self.colour_difference * colour interpolations to get the colours for each triangle
 
 
-    def offset_triangles(self, x_offset, y_offset):
-        # print(self.right_triangle + self.right_push)
-        # print(self.right_triangle + self.right_push* x_offset)
-        # print(self.right_push * x_offset)
-        # print(self.down_push * y_offset)
-        # print(self.right_triangle + self.right_push * x_offset + self.down_push * y_offset)
+    def return_offset_triangles(self, x_offset, y_offset):
         yield (self.right_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
         yield (self.left_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
         yield (self.top_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
         yield (self.bottom_triangle + self.right_push * x_offset + self.down_push * y_offset).astype(int)
 
-    # loop through every state (0,1 steps to 1)
-    #
+    def return_interpolated_colour(self, colour_factor):
+        return self.min_colour + self.colour_difference * colour_factor
 
-    def return_colour_scheme(self, colour_factor):
-        return tuple((self.min_colour + self.colour_difference * colour_factor))
-
-    #
-    # def populate_triangles(self, colour_interpolations):
-    #     # loop through interpolations
-    #     # order is right left up down
-    #     for y_coord in range(10):
-    #         for x_coord in range(10):
-    #             for interpolation, triangle in zip(colour_interpolations, self.offset_triangles(x_coord, y_coord)):
-    #                 cv2.fillConvexPoly(self.image, triangle, interpolation)
-    #
-
-    def draw(self, colour_interpolations):
-        # Create a black image
-        self.image.fill(0)
-
-        # loop through interpolations
-        # order is right left up down
+    def draw(self, colour_interpolations, show_goal = False):
+        # Colour interpolations are given in the order of actions: right left up down
+        colour_interpolations = iter(colour_interpolations)
         for y_coord in range(10):
             for x_coord in range(10):
-                for interpolation in colour_interpolations:
-                    count = 0
-                    for colour_factor, triangle in zip(interpolation, self.offset_triangles(x_coord, y_coord)):
-                        print(count)
-                        count += 1
-                        colour = self.return_colour_scheme(colour_factor)
-                        print(colour)
-                        cv2.fillConvexPoly(self.image, triangle, colour)
+                interpolation = next(colour_interpolations)
+                # count = 0
+                for colour_factor, triangle in zip(interpolation, self.return_offset_triangles(x_coord, y_coord)):
+                    # print(count)
+                    # count += 1
+                    # colour = self.return_interpolated_colour(colour_factor)
+                    # print(colour)
+                    cv2.fillConvexPoly(self.image, triangle, self.return_interpolated_colour(colour_factor)) # draw triangles
+                    polylinepts = np.array([triangle[0], triangle[-1], triangle[1], triangle[-1]]) # start and end points of the lines, outer point to inner point
+                    # print(polylinepts)
+                    cv2.polylines(self.image, [polylinepts], True, (0, 0, 0), 3)  # draw triangle borders, polylines expects a list that contains a numpy array with coords
+                    # cv2.polylines(self.image, triangle.reshape(-1,1,2), True, (0, 0, 0), 3) # draw triangle borders
+                    # cv2.polylines(self.image, triangle,
+                    #               self.return_interpolated_colour(colour_factor))  # draw triangle borders
+
+        # SHOW GOAL
+        if show_goal:
+            goal_centre = (int(self.goal_state[0] * self.magnification), int((1 - self.goal_state[1]) * self.magnification))
+            goal_radius = int(0.02 * self.magnification)
+            goal_colour = (0, 255, 0)
+            cv2.circle(self.image, goal_centre, goal_radius, goal_colour, cv2.FILLED)
+
+        # Draw grid lines
+        for x_coord in np.arange(0.1, 1, 0.1):
+            startpoint = (int(x_coord * self.magnification), 0)
+            endpoint = (int(x_coord * self.magnification), int(self.height * self.magnification))
+            print(startpoint)
+            print(endpoint)
+            cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
+
+        for y_coord in np.arange(0.1, 1, 0.1):
+            startpoint = (0, int(y_coord * self.magnification))
+            endpoint = (int(self.width * self.magnification), int(y_coord * self.magnification))
+            cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
+
         # Show the image
         cv2.imshow("Environment", self.image)
         # This line is necessary to give time for the image to be rendered on the screen
         cv2.waitKey(1)
 
+if __name__ == "__main__":
+    qv = QVisualisation(True, 1000)
+    # triangle = qv.offset_triangles(1, 1)
 
-qv = QVisualisation(True, 1000)
-# triangle = qv.offset_triangles(1, 1)
-# print(next(triangle))
-print(qv.return_colour_scheme(0.5))
-# time.sleep(5)
+    # print(qv.return_colour_scheme(0.5))
+    # qv.plot_single_triangle((0, 255, 255))
+    # cv2.fillConvexPoly(qv.image, qv.right_triangle, (0, 255, 0))
+    # Show the image
+    cv2.imshow("Environment", qv.image)
+    # This line is necessary to give time for the image to be rendered on the screen
+    cv2.waitKey(1)
+
+    # time.sleep(5)
 
 
 
