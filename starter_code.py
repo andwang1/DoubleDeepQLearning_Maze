@@ -8,6 +8,7 @@ import collections
 
 from environment import Environment
 from q_visualisation import QVisualisation
+from path_visualisation import PathVisualisation
 
 
 # The Agent class allows the agent to interact with the environment.
@@ -31,9 +32,12 @@ class Agent:
         self.total_reward = 0.0
 
     # Function to make the agent take one step in the environment.
-    def step(self):
+    def step(self, action:int = False):
         # Choose an action.
-        discrete_action = np.random.randint(0, 4)
+        if action:
+            discrete_action = action
+        else:
+            discrete_action = np.random.randint(0, 4)
         # Convert the discrete action into a continuous action.
         continuous_action = self._discrete_action_to_continuous(discrete_action)
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
@@ -135,10 +139,12 @@ class DQN:
         colour_interpolation_factors = (predictions_np_array - min(predictions_np_array)) / (
                                         max(predictions_np_array) - min(predictions_np_array))
         return colour_interpolation_factors
-        # greedy_action = np.argsort(prediction_np_array) # take argsort, from left to right will be smallest to largest, detach to get rid of grad in tensor
 
-        # vectorise this into one call?
-
+    def return_greedy_action(self, current_state):
+        input_tensor = torch.tensor(current_state).unsqueeze(0)
+        network_prediction = self.q_network.forward(input_tensor)
+        predictions_np_array = network_prediction.detach().numpy().ravel()
+        return np.argmax(predictions_np_array)
 
 class ReplayBuffer:
     def __init__(self, max_capacity=1000000):
@@ -169,6 +175,7 @@ class ReplayBuffer:
 if __name__ == "__main__":
     plot_loss = False
     plot_qvalues = False
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 1
     np.random.seed(CID)
@@ -184,21 +191,29 @@ if __name__ == "__main__":
     rb_batch_size = 50
 
     # Loop over episodes
-    counter = 0
+    episode_counter = 0
     losses = []
     time_steps = []
     initial_time = False
+    state_path = []
     while True:
-        if counter == 5:  # TODO
+        if episode_counter == 15:
             break
-        counter += 1  # TODO
+        episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(200):  # TODO
-            # Step the agent once, and get the transition tuple for this step.
-            transition = agent.step()
+        for step_num in range(10):
+            # In this episode we will choose the greedy action instead of the random actions.
+            if episode_counter == 14:
+                # Get the current state
+                current_state = agent.state
+                state_path.append(current_state)
+                greedy_action = dqn.return_greedy_action(current_state)
+                transition = agent.step(greedy_action)
+            else:
+                transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
                 initial_time = time.time()
@@ -257,3 +272,11 @@ if __name__ == "__main__":
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
         time.sleep(15)
+
+    if plot_state_path:
+        pv = PathVisualisation(1000)
+        print(state_path)
+        pv.draw(state_path)
+        time.sleep(5)
+
+    # print(state_path)
