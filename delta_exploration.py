@@ -211,15 +211,12 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_rewards = False
     plot_qvalues = False
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
-    np.random.seed(CID)
-    torch.manual_seed(CID)
     environment = Environment(display=False, magnification=1000)
-    agent = Agent(environment)
     # Create a ReplayBuffer and batch size
     replay_buffer = ReplayBuffer()
     rb_batch_size = 50
@@ -244,10 +241,8 @@ if __name__ == "__main__":
         total_steps_counter = 0
         rewards = 0
         while True:
-            # print("episode")
             if episode_counter == 3:
-                # print("ENDGREEDY")
-                # get the last reward from last episode
+                # Get the rewards collected in the final episode
                 episode_rewards.append(agent.total_reward)
                 break
             episode_counter += 1
@@ -258,86 +253,41 @@ if __name__ == "__main__":
             for step_num in range(250):
                 # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
                 if total_steps_counter >= 500:
-                    # print("greedy episode")
                     current_state = agent.state
                     greedy_action = dqn.return_greedy_action(current_state)
                     transition = agent.step(greedy_action)
-                    rewards += transition[2]
-                    # print(transition)
                     continue
-
 
                 # Every 20 steps update target DQN
                 if total_steps_counter % 20 == 0:
                     dqn.copy_weights_to_target_dqn()
-                    # print("targetupdate")
-                # In this episode we will choose the greedy action instead of the random actions.
-                # reduce epsilon by delta afterwards, if delta = 1, continue
-                current_state = agent.state
-                # should we make this return the greedy policy from the target network or the normal network? should be normal
-                greedy_action = dqn.return_greedy_action(current_state)
+
+
+                # Implement epsilon greedy policy, wrt the non-target network
+                greedy_action = dqn.return_greedy_action(agent.state)
                 epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
-                # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
-                # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
                 transition = agent.step(epsilon_greedy_action)
-                # print(transition)
+                # Decrease the epsilon every step
                 if agent.epsilon > 0:
-                    # print(agent.epsilon)
-                    # Lower bound of epsilon is 0, technically not necessary with the random implementation
                     agent.epsilon = max(agent.epsilon - delta, 0)
 
                 replay_buffer.add(transition)
-
                 total_steps_counter += 1
-
                 if len(replay_buffer) < rb_batch_size:
                     continue
-                # Using target network
+                # Calculate loss using target network
                 loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
 
     print(episode_rewards)
     print(deltas)
-    # [69.49819105863571, 191.2431511483065, 81.87932169437408, 81.87932169437408, 190.65546795725822]
-    # [0.001, 0.006, 0.011, 0.016, 0.021]
 
-    # for episode length 250
-    # [69.49819105863571, 69.52339190244675, 81.87932169437408, 81.87932169437408, 189.98435482382774, 191.2431511483065, 220.21732181310654, 219.6368263712994, 190.3477962911129, 81.91978877782822]
-    # [0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009000000000000001, 0.010000000000000002]
-
-
-    # for episode length 500
-    #[164.17421793937683, 139.22061997652054, 385.14003087580204, 164.17421793937683, 384.32245713472366,
-     #385.0201518982649, 425.2013679793946, 444.9836397022009, 424.81146216392517, 135.8202810883522]
-    #[0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009000000000000001, 0.010000000000000002]
-
-    # 0.001 got stuck in the obstacle, 0.005 went around the obstacle
-
-
-
-    # Plotting the loss functions as function of steps and time
-    if plot_loss:
-        # Delta axis
+    # Plotting the reward functions as function of steps and time
+    if plot_rewards:
         ax1 = sns.lineplot(delta_range, episode_rewards)
-
         ax1.set_xlabel("Delta value")
-
-        # Time axis
-        # ax2 = ax1.twiny()
-        # time_labels_per_episode = time_steps
-        # time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
-        # ax2.set_xticks(time_labels_positions)
-        # ax2.set_xticklabels(time_labels_per_episode)
-        # ax2.set_xlabel('Time (ms)')
-        # ax2.set_xlim(ax1.get_xlim())
-
         plt.ylabel("Episode rewards")
-
-        # Add vertical lines
-        # for step_num in range(500, len(losses) + 500, 20):
-        #     ax1.axvline(step_num, ls="--")
         plt.show()
 
-        # start both x axis on 0?
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:

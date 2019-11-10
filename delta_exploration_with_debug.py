@@ -226,7 +226,7 @@ if __name__ == "__main__":
     episode_rewards = []
     deltas = []
     optimal_delta = 0.007
-    delta_range = [0, 0.003, optimal_delta, 0.011, 1]
+    delta_range = [0.003]
     for delta in delta_range:
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)
@@ -244,9 +244,9 @@ if __name__ == "__main__":
         total_steps_counter = 0
         rewards = 0
         while True:
-            # print("episode")
+            print("episode")
             if episode_counter == 3:
-                # print("ENDGREEDY")
+                print("ENDGREEDY")
                 # get the last reward from last episode
                 episode_rewards.append(agent.total_reward)
                 break
@@ -258,29 +258,29 @@ if __name__ == "__main__":
             for step_num in range(250):
                 # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
                 if total_steps_counter >= 500:
-                    # print("greedy episode")
+                    print("greedy episode")
                     current_state = agent.state
                     greedy_action = dqn.return_greedy_action(current_state)
                     transition = agent.step(greedy_action)
                     rewards += transition[2]
-                    # print(transition)
+                    print(transition)
                     continue
 
 
                 # Every 20 steps update target DQN
                 if total_steps_counter % 20 == 0:
                     dqn.copy_weights_to_target_dqn()
-                    # print("targetupdate")
+                    print("targetupdate")
                 # In this episode we will choose the greedy action instead of the random actions.
                 # reduce epsilon by delta afterwards, if delta = 1, continue
                 current_state = agent.state
                 # should we make this return the greedy policy from the target network or the normal network? should be normal
                 greedy_action = dqn.return_greedy_action(current_state)
                 epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
-                # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
-                # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
+                print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
+                print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
                 transition = agent.step(epsilon_greedy_action)
-                # print(transition)
+                print(transition)
                 if agent.epsilon > 0:
                     # print(agent.epsilon)
                     # Lower bound of epsilon is 0, technically not necessary with the random implementation
