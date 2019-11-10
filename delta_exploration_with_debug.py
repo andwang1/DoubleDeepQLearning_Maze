@@ -225,8 +225,9 @@ if __name__ == "__main__":
     rb_batch_size = 50
     episode_rewards = []
     deltas = []
-    optimal_delta = 0.007
-    delta_range = [0.003]
+    optimal_delta = 0.0055
+    # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
+    delta_range = np.arange(0.01, 0.9, 0.01)
     for delta in delta_range:
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)
@@ -245,7 +246,7 @@ if __name__ == "__main__":
         rewards = 0
         while True:
             print("episode")
-            if episode_counter == 3:
+            if episode_counter == 26:
                 print("ENDGREEDY")
                 # get the last reward from last episode
                 episode_rewards.append(agent.total_reward)
@@ -255,7 +256,7 @@ if __name__ == "__main__":
             # Reset the environment for the start of the episode.
             agent.reset()
             # Loop over steps within this episode.
-            for step_num in range(250):
+            for step_num in range(20):
                 # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
                 if total_steps_counter >= 500:
                     print("greedy episode")

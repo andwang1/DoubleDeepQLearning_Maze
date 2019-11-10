@@ -169,7 +169,7 @@ if __name__ == "__main__":
     # Create an environment.
     # If display is True, then the environment will be displayed after every agent step. This can be set to False to speed up training time. The evaluation in part 2 of the coursework will be done based on the time with display=False.
     # Magnification determines how big the window will be when displaying the environment on your monitor. For desktop PCs, a value of 1000 should be about right. For laptops, a value of 500 should be about right. Note that this value does not affect the underlying state space or the learning, just the visualisation of the environment.
-    environment = Environment(display=False, magnification=1000)
+    environment = Environment(display=True, magnification=1000)
     # Create an agent
     agent = Agent(environment)
     # Create a DQN (Deep Q-Network)
@@ -196,8 +196,8 @@ if __name__ == "__main__":
             time_steps.append(round((time.time() - initial_time) * 1000)) #time taken in milliseconds
             # losses.append(np.log(loss)) # y axis should have log scale
             losses.append(loss)  # abs loss
-            # if counter >= 15: # TODO
-            #     time.sleep(0.5)
+            if counter >= 15: # TODO
+                time.sleep(0.5)
 
     # Reset so time starts at 0, take the time equal to 0 before the first training
     time_steps = np.array(time_steps)

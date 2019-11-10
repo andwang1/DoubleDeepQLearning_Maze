@@ -197,16 +197,16 @@ if __name__ == "__main__":
     initial_time = False
     state_path = []
     while True:
-        if episode_counter == 5:
+        if episode_counter == 26:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(5):
+        for step_num in range(20):
             # In this episode we will choose the greedy action instead of the random actions.
-            if episode_counter == 4:
+            if episode_counter == 25:
                 # Make the greedy action step to plot the state path
                 current_state = agent.state
                 state_path.append(current_state)

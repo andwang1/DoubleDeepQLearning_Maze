@@ -25,6 +25,7 @@ class Agent:
         self.reset()
         self.epsilon = 1.
 
+
     # Function to reset the environment, and set the agent to its initial state. This should be done at the start of every episode.
     def reset(self):
         # Reset the environment for the start of the new episode, and set the agent's state to the initial state as defined by the environment.
@@ -53,6 +54,45 @@ class Agent:
         self.total_reward += reward
         # Return the transition
         return transition
+
+    def step_alt_reward(self, action: int = False):
+        # Choose an action.
+        if action is not False:
+            discrete_action = action
+        else:
+            discrete_action = np.random.randint(0, 4)
+        # Convert the discrete action into a continuous action.
+        continuous_action = self._discrete_action_to_continuous(discrete_action)
+        # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
+        next_state, _ = self.environment.step(self.state, continuous_action)
+        # IMPLEMENT NEW REWARD FUNCTION, MANHATTAN DISTANCE
+        reward = 1.7 - (abs(next_state[0] - self.environment.goal_state[0]) + abs(next_state[1] - self.environment.goal_state[1]))
+        # MAX DIST
+        # reward = 1 - (max(abs(next_state[0] - self.environment.goal_state[0]), abs(
+        #     next_state[1] - self.environment.goal_state[1])))
+        # UP AND RIGHT
+        if np.linalg.norm(next_state - self.state) < 0.001:
+            reward = -1
+        elif action in {1, 3}:
+            reward = -2
+        elif action in {0, 2}:
+            # if standing still, give a reward of 0, moving against wall
+            # if np.linalg.norm(next_state - self.state) < 0.001:
+            #     reward = 0
+            # else:
+            reward = 2
+
+        # Create a transition tuple for this step.
+        transition = (self.state, discrete_action, reward, next_state)
+        # Set the agent's state for the next step, as the next state from this step
+        self.state = next_state
+        # Update the agent's reward for this episode
+        self.total_reward += reward
+        # Return the transition
+        return transition
+
+    def return_final_distance(self, state, metric="m"):
+        return (abs(state[0] - self.environment.goal_state[0]) + abs(state[1] - self.environment.goal_state[1]))
 
     # Function for the agent to compute its reward. In this example, the reward is based on the agent's distance to the goal after the agent takes an action.
     def _compute_reward(self, distance_to_goal):
@@ -107,8 +147,11 @@ class DQN:
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
-    def copy_weights_to_target_dqn(self):
-        self.target_q_network.load_state_dict(self.q_network.state_dict())
+    def copy_weights_to_target_dqn(self, other_dqn = False):
+        if other_dqn:
+            self.q_network.load_state_dict(other_dqn.q_network.state_dict())
+        else:
+            self.target_q_network.load_state_dict(self.q_network.state_dict())
 
     # Function to calculate the loss for a single transition.
     def _calculate_loss(self, transition):
@@ -211,115 +254,137 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
     torch.manual_seed(CID)
-    environment = Environment(display=False, magnification=1000)
-    agent = Agent(environment)
+    # initialise both environments and agents
+    environment_old = Environment(display=False, magnification=1000)
+    agent_old = Agent(environment_old)
+    environment_new = Environment(display=False, magnification=1000)
+    agent_new = Agent(environment_new)
     # Create a ReplayBuffer and batch size
-    replay_buffer = ReplayBuffer()
+    replay_buffer_old = ReplayBuffer()
+    replay_buffer_new = ReplayBuffer()
     rb_batch_size = 50
-    episode_rewards = []
-    deltas = []
-    optimal_delta = 0.007
-    delta_range = [0, 0.003, optimal_delta, 0.011, 1]
-    for delta in delta_range:
-        # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
-        np.random.seed(CID)
-        torch.manual_seed(CID)
-        deltas.append(delta)
-        # Create a new DQN (Deep Q-Network)
-        dqn = DQN()
-        dqn.copy_weights_to_target_dqn()
-        # Create a new agent
-        agent = Agent(environment)
-        # Clear the replay_buffer
-        replay_buffer.clear()
+    optimal_delta = 0.0055
+    dqn_old = DQN()
+    dqn_new = DQN()
+    # Make sure both networks have the same initial weights as the random seed cannot be reinitialised now
+    dqn_new.copy_weights_to_target_dqn(dqn_old)
+    dqn_old.copy_weights_to_target_dqn()
+    dqn_new.copy_weights_to_target_dqn()
 
-        episode_counter = 0
-        total_steps_counter = 0
-        rewards = 0
-        while True:
-            # print("episode")
-            if episode_counter == 3:
-                # print("ENDGREEDY")
-                # get the last reward from last episode
-                episode_rewards.append(agent.total_reward)
-                break
-            episode_counter += 1
+    
+    # have 2 networks, one is trained with the normal reward function, one with the new one
+    # after each step, based on the training, have both networks run greedily for one episode (length 20) and find the final states distance
+    # append these distances to a list, so have a list of 500 after all the training
+    # create test agent and test environment for each trial
 
-            # Reset the environment for the start of the episode.
-            agent.reset()
-            # Loop over steps within this episode.
-            for step_num in range(250):
-                # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
-                if total_steps_counter >= 500:
-                    # print("greedy episode")
-                    current_state = agent.state
-                    greedy_action = dqn.return_greedy_action(current_state)
-                    transition = agent.step(greedy_action)
-                    rewards += transition[2]
-                    # print(transition)
-                    continue
+    episode_counter = 0
+    total_steps_counter = 0
+
+    distances_old = []
+    distances_new = []
+    while True:
+        if episode_counter == 25:
+            break
+        episode_counter += 1
+        # Reset the environment for the start of the episode.
+        agent_old.reset()
+        agent_new.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
+            # if total_steps_counter >= 500:
+            #     # print("greedy episode")
+            #     current_state = agent.state
+            #     greedy_action = dqn.return_greedy_action(current_state)
+            #     transition = agent.step(greedy_action)
+            #     rewards += transition[2]
+            #     # print(transition)
+            #     continue
 
 
-                # Every 20 steps update target DQN
-                if total_steps_counter % 20 == 0:
-                    dqn.copy_weights_to_target_dqn()
-                    # print("targetupdate")
-                # In this episode we will choose the greedy action instead of the random actions.
-                # reduce epsilon by delta afterwards, if delta = 1, continue
-                current_state = agent.state
-                # should we make this return the greedy policy from the target network or the normal network? should be normal
-                greedy_action = dqn.return_greedy_action(current_state)
-                epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
-                # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
-                # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
-                transition = agent.step(epsilon_greedy_action)
-                # print(transition)
-                if agent.epsilon > 0:
-                    # print(agent.epsilon)
-                    # Lower bound of epsilon is 0, technically not necessary with the random implementation
-                    agent.epsilon = max(agent.epsilon - delta, 0)
+            # Every 20 steps update target DQN
+            if total_steps_counter % 20 == 0:
+                dqn_old.copy_weights_to_target_dqn()
+                dqn_new.copy_weights_to_target_dqn()
+            
+            # For both environments, make the transition                
+            # Old reward
+            greedy_action_old = dqn_old.return_greedy_action(agent_old.state)
+            epsilon_greedy_action_old = agent_old.epsilon_greedy_policy(greedy_action_old)
+            transition_old = agent_old.step(epsilon_greedy_action_old)
+            # This is with the new reward
+            greedy_action_new = dqn_new.return_greedy_action(agent_new.state)
+            epsilon_greedy_action_new = agent_new.epsilon_greedy_policy(greedy_action_new)
+            transition_new = agent_new.step_alt_reward(epsilon_greedy_action_new)
+            # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
+            # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
+            
+            # print(transition)
+            # Update epsilon after each step
+            if agent_old.epsilon > 0:
+                # print(agent.epsilon)
+                # Lower bound of epsilon is 0, technically not necessary with the random implementation
+                agent_old.epsilon = max(agent_old.epsilon - optimal_delta, 0)
+                agent_new.epsilon = agent_old.epsilon
 
-                replay_buffer.add(transition)
+            # Add transitions to replay buffers
+            replay_buffer_old.add(transition_old)
+            replay_buffer_new.add(transition_new)
 
-                total_steps_counter += 1
+            # Training using target network
+            if len(replay_buffer_old) < rb_batch_size:
+                train_network = False
+            else:
+                train_network = True
 
-                if len(replay_buffer) < rb_batch_size:
-                    continue
-                # Using target network
-                loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
+            if train_network:
+                loss_old = dqn_old.train_q_network_batch(replay_buffer_old.generate_batch(rb_batch_size))
+                loss_new = dqn_new.train_q_network_batch(replay_buffer_new.generate_batch(rb_batch_size))
 
-    print(episode_rewards)
-    print(deltas)
-    # [69.49819105863571, 191.2431511483065, 81.87932169437408, 81.87932169437408, 190.65546795725822]
-    # [0.001, 0.006, 0.011, 0.016, 0.021]
+            # Here run full episode with greedy policy
+            # initialise a new environment and agent for both networks
+            environment_test_old = Environment(display=False, magnification=1000)
+            agent_test_old = Agent(environment_test_old)
+            environment_test_new = Environment(display=False, magnification=1000)
+            agent_test_new = Agent(environment_test_new)
+            for step in range(20):
+                greedy_action_test_old = dqn_old.return_greedy_action(agent_test_old.state)
+                transition_old = agent_test_old.step(greedy_action_test_old)
+                greedy_action_test_new = dqn_new.return_greedy_action(agent_test_new.state)
+                transition_new = agent_test_new.step_alt_reward(greedy_action_test_new)
+                print(transition_new[2])
+                print(transition_new)
+            print(agent_test_old.state)
+            print(agent_test_new.state)
 
-    # for episode length 250
-    # [69.49819105863571, 69.52339190244675, 81.87932169437408, 81.87932169437408, 189.98435482382774, 191.2431511483065, 220.21732181310654, 219.6368263712994, 190.3477962911129, 81.91978877782822]
-    # [0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009000000000000001, 0.010000000000000002]
+            final_distance_old = agent_test_old.return_final_distance(agent_test_old.state)
+            final_distance_new = agent_test_new.return_final_distance(agent_test_new.state)
+            print(final_distance_old)
+            print(final_distance_new)
+            distances_old.append(final_distance_old)
+            distances_new.append(final_distance_new)
 
+            total_steps_counter += 1
 
-    # for episode length 500
-    #[164.17421793937683, 139.22061997652054, 385.14003087580204, 164.17421793937683, 384.32245713472366,
-     #385.0201518982649, 425.2013679793946, 444.9836397022009, 424.81146216392517, 135.8202810883522]
-    #[0.001, 0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.009000000000000001, 0.010000000000000002]
-
-    # 0.001 got stuck in the obstacle, 0.005 went around the obstacle
-
-
-
-    # Plotting the loss functions as function of steps and time
+    difference = np.array(distances_old) - np.array(distances_new)
+    print(difference)
+    print(distances_old)
+    print(distances_new)
+    #
+    # # Plotting the loss functions as function of steps and time
     if plot_loss:
         # Delta axis
-        ax1 = sns.lineplot(delta_range, episode_rewards)
-
+        ax1 = plt.plot(range(500), distances_old, color="green")
+        # ax2 = ax1.twiny()
         ax1.set_xlabel("Delta value")
+        ax2 = plt.plot(range(500), distances_new, color="red")
 
         # Time axis
         # ax2 = ax1.twiny()
@@ -338,25 +403,25 @@ if __name__ == "__main__":
         plt.show()
 
         # start both x axis on 0?
-
-    # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
-    if plot_qvalues:
-        # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
-        states_x_coords = np.arange(0.05, 1, 0.1)
-        states_y_coords = np.arange(0.95, 0, -0.1)
-
-        colour_factors = []
-        for y_coord in states_y_coords:
-            for x_coord in states_x_coords:
-                input_tensor = torch.tensor([[x_coord, y_coord]])
-                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
-
-        qv = QVisualisation(1000)
-        qv.draw(colour_factors)
-        time.sleep(15)
-
-    if plot_state_path:
-        pv = PathVisualisation(1000)
-        pv.draw(state_path)
-        time.sleep(15)
-
+    #
+    # # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
+    # if plot_qvalues:
+    #     # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
+    #     states_x_coords = np.arange(0.05, 1, 0.1)
+    #     states_y_coords = np.arange(0.95, 0, -0.1)
+    #
+    #     colour_factors = []
+    #     for y_coord in states_y_coords:
+    #         for x_coord in states_x_coords:
+    #             input_tensor = torch.tensor([[x_coord, y_coord]])
+    #             colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+    #
+    #     qv = QVisualisation(1000)
+    #     qv.draw(colour_factors)
+    #     time.sleep(15)
+    #
+    # if plot_state_path:
+    #     pv = PathVisualisation(1000)
+    #     pv.draw(state_path)
+    #     time.sleep(15)
+    #

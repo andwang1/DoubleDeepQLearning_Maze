@@ -195,9 +195,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = True
+    plot_loss = False
     plot_qvalues = False
-    plot_state_path = False
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 1
     np.random.seed(CID)
@@ -219,7 +219,7 @@ if __name__ == "__main__":
     initial_time = False
     state_path = []
     while True:
-        if episode_counter == 25:
+        if episode_counter == 26:
             break
         episode_counter += 1
 
@@ -229,16 +229,8 @@ if __name__ == "__main__":
         for step_num in range(20):
             # In this episode we will choose the greedy action instead of the random actions.
             if plot_state_path:
-                if episode_counter == 54:
-                    if plot_qvalues:
-                        states_x_coords = np.arange(0.05, 1, 0.1)
-                        states_y_coords = np.arange(0.95, 0, -0.1)
-                        colour_factors = []
-                        for y_coord in states_y_coords:
-                            for x_coord in states_x_coords:
-                                input_tensor = torch.tensor([[x_coord, y_coord]])
-                                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
-                    # Make the greedy action step
+                if episode_counter == 25:
+                    # Make the greedy action step, plot state path
                     current_state = agent.state
                     state_path.append(current_state)
                     greedy_action = dqn.return_greedy_action(current_state)
