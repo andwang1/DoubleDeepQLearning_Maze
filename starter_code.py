@@ -211,11 +211,11 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
-    plot_qvalues = True
+    plot_loss = True
+    plot_qvalues = False
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
-    CID = 1
+    CID = 741321
     np.random.seed(CID)
     torch.manual_seed(CID)
     environment = Environment(display=False, magnification=1000)
@@ -224,8 +224,10 @@ if __name__ == "__main__":
     replay_buffer = ReplayBuffer()
     rb_batch_size = 50
     episode_rewards = []
-    delta_range = np.arange(0.99, 1.01, 0.01)
+    deltas = []
+    delta_range = np.arange(0.004, 0.007, 0.002)
     for delta in delta_range:
+        deltas.append(delta)
         # Create a new DQN (Deep Q-Network)
         dqn = DQN()
         dqn.copy_weights_to_target_dqn()
@@ -240,6 +242,9 @@ if __name__ == "__main__":
         while True:
             print("episode")
             if episode_counter == 3:
+                print("ENDGREEDY")
+                # get the last reward from last episode
+                episode_rewards.append(agent.total_reward)
                 break
             episode_counter += 1
 
@@ -247,7 +252,17 @@ if __name__ == "__main__":
             agent.reset()
             # Loop over steps within this episode.
             for step_num in range(250):
-                total_steps_counter += 1
+                # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
+                if total_steps_counter >= 500:
+                    print("greedy episode")
+                    current_state = agent.state
+                    greedy_action = dqn.return_greedy_action(current_state)
+                    transition = agent.step(greedy_action)
+                    rewards += transition[2]
+                    print(transition)
+                    continue
+
+
                 # Every 20 steps update target DQN
                 if total_steps_counter % 20 == 0:
                     dqn.copy_weights_to_target_dqn()
@@ -258,7 +273,7 @@ if __name__ == "__main__":
                 # should we make this return the greedy policy from the target network or the normal network? should be normal
                 greedy_action = dqn.return_greedy_action(current_state)
                 epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
-                # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
+                print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
                 # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
                 transition = agent.step(epsilon_greedy_action)
                 print(transition)
@@ -266,21 +281,22 @@ if __name__ == "__main__":
                     # print(agent.epsilon)
                     # Lower bound of epsilon is 0, technically not necessary with the random implementation
                     agent.epsilon = max(agent.epsilon - delta, 0)
-                # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
+
                 replay_buffer.add(transition)
+
+                total_steps_counter += 1
+
                 if len(replay_buffer) < rb_batch_size:
                     continue
                 # Using target network
                 loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
-                # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards
-                if episode_counter >= 2:
-                    rewards += transition[2]  # reward
-
-        episode_rewards.append(rewards)
 
     print(episode_rewards)
-    # for 0.01 steps
-    # episode_rewards = [5.848978757858276, 10.8709907582871, 12.456115623461393, 12.589589089155197, 12.859656751155853, 13.40407518063703, 13.221232344853071, 13.818518986889472, 13.56906167695361, 13.203376203775406, 13.85190405506765, 13.551904057609228, 13.85190405506765, 13.610482747648533, 13.71048286601063, 13.85190405506765, 13.901264389940849, 13.901264389940849, 13.71048274680134, 13.85190405506765, 13.85190405506765, 13.85190405506765, 13.85190405506765, 13.901264389940849, 13.901264389940849, 13.61842177340823, 13.42764013026872, 13.901264389940849, 13.85190405506765, 13.901264389940849, 13.85190405506765, 13.801264390788042, 12.491539865732193, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.85190405506765, 13.75984308167454, 13.901264389940849, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.801264390788042, 13.901264509150138, 13.901264509150138, 13.901264389940849, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264628359428, 13.901264628359428, 13.901264389940849, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264509150138, 13.901264509150138, 13.759843200883829, 13.901264509150138, 13.901264389940849, 13.759843409500085, 13.901264389940849, 13.901264389940849, 13.901264389940849, 13.901264747568717, 13.93177237171804, 13.901264389940849, 13.901264628359428, 13.901264509150138, 13.901264509150138, 13.93177237171804, 13.901264628359428, 13.901264389940849, 13.901264389940849, 13.901264509150138, 13.901264509150138, 13.901264389940849, 13.901264747568717, 13.901264509150138, 13.901264628359428, 13.931772610136619, 13.901264389940849, 13.901264389940849, 13.851904293486228, 13.94577612538015, 13.901264389940849, 13.901264747568717, 13.94577600617086, 13.93177249092733, 13.901264389940849, 13.901264747568717, 13.901264509150138, 13.901264389940849, 13.931772610136619]
+    print(deltas)
+    # np.arange(0.001, 0.012, 0.005)
+    # [69.49819105863571, 200.79575300728, 190.42707270383835]
+    # 0.001 got stuck in the obstacle, 0.005 went around the obstacle
+
 
 
     # Plotting the loss functions as function of steps and time
