@@ -177,7 +177,7 @@ if __name__ == "__main__":
     plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
-    CID = 1
+    CID = 741321
     np.random.seed(CID)
     torch.manual_seed(CID)
     # Create an environment.
@@ -197,29 +197,22 @@ if __name__ == "__main__":
     initial_time = False
     state_path = []
     while True:
-        if episode_counter == 55:
+        if episode_counter == 5:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(50):
+        for step_num in range(5):
             # In this episode we will choose the greedy action instead of the random actions.
-            if episode_counter == 54:
-                if plot_qvalues:
-                    states_x_coords = np.arange(0.05, 1, 0.1)
-                    states_y_coords = np.arange(0.95, 0, -0.1)
-                    colour_factors = []
-                    for y_coord in states_y_coords:
-                        for x_coord in states_x_coords:
-                            input_tensor = torch.tensor([[x_coord, y_coord]])
-                            colour_factors.append(dqn.return_optimal_action_order(input_tensor))
-                # Make the greedy action step
+            if episode_counter == 4:
+                # Make the greedy action step to plot the state path
                 current_state = agent.state
                 state_path.append(current_state)
                 greedy_action = dqn.return_greedy_action(current_state)
                 transition = agent.step(greedy_action)
+                continue # do not train on these steps
             else:
                 transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
@@ -268,14 +261,15 @@ if __name__ == "__main__":
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
         # # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
-        # states_x_coords = np.arange(0.05, 1, 0.1)
-        # states_y_coords = np.arange(0.95, 0, -0.1)
-        #
-        # colour_factors = []
-        # for y_coord in states_y_coords:
-        #     for x_coord in states_x_coords:
-        #         input_tensor = torch.tensor([[x_coord, y_coord]])
-        #         colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+        states_x_coords = np.arange(0.05, 1, 0.1)
+        states_y_coords = np.arange(0.95, 0, -0.1)
+
+        colour_factors = []
+        for y_coord in states_y_coords:
+            for x_coord in states_x_coords:
+                input_tensor = torch.tensor([[x_coord, y_coord]])
+                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+
 
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
