@@ -8,6 +8,8 @@ class PathVisualisation:
         self.magnification = magnification
         # Set the initial state of the goal
         self.goal_state = np.array([0.75, 0.85], dtype=np.float32)
+        # Obstacle space
+        self.obstacle_space = np.array([[0.3, 0.5], [0.3, 0.6]], dtype=np.float32)
         # Set the width and height of the environment
         self.width = 1.0
         self.height = 1.0
@@ -23,7 +25,7 @@ class PathVisualisation:
     def return_interpolated_colour(self, factor):
         return self.start_colour + self.colour_difference * factor
 
-    def draw(self, line_coordinates: list, show_goal=False):
+    def draw(self, line_coordinates: list, draw_obstacle = False, show_goal=False):
         # Draw white grid lines
         for x_coord in np.arange(0.1, 1, 0.1):
             startpoint = (int(x_coord * self.magnification), 0)
@@ -35,7 +37,17 @@ class PathVisualisation:
             endpoint = (int(self.width * self.magnification), int(y_coord * self.magnification))
             cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
 
-        line_counter = 0
+        # Draw obstacle
+        if draw_obstacle:
+            obstacle_left = int(self.magnification * self.obstacle_space[0, 0])
+            obstacle_top = int(self.magnification * (1 - self.obstacle_space[1, 1]))
+            obstacle_width = int(self.magnification * (self.obstacle_space[0, 1] - self.obstacle_space[0, 0]))
+            obstacle_height = int(self.magnification * (self.obstacle_space[1, 1] - self.obstacle_space[1, 0]))
+            obstacle_top_left = (obstacle_left, obstacle_top)
+            obstacle_bottom_right = (obstacle_left + obstacle_width, obstacle_top + obstacle_height)
+            cv2.rectangle(self.image, obstacle_top_left, obstacle_bottom_right, (150, 150, 150), thickness=cv2.FILLED)
+
+        # Draw path
         for index, start_coordinates in enumerate(line_coordinates[:-1]):
                 colour = self.return_interpolated_colour(index / (len(line_coordinates) - 2))
                 end_coordinates = line_coordinates[index + 1]

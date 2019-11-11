@@ -36,6 +36,7 @@ class Agent:
         # Choose an action.
         if action is not False:
             discrete_action = action
+            print("nr")  # DEBUG TODO
         else:
             discrete_action = np.random.randint(0, 4)
         # Convert the discrete action into a continuous action.
@@ -149,6 +150,7 @@ class DQN:
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
         predictions_np_array = network_prediction.detach().numpy().ravel()
+        print(predictions_np_array) # DEBUG TODO
         return np.argmax(predictions_np_array)
 
     def return_greedy_actions_tensor(self, tensor_states):
@@ -199,7 +201,7 @@ if __name__ == "__main__":
     plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
-    CID = 1
+    CID = 741321
     np.random.seed(CID)
     torch.manual_seed(CID)
     # Create an environment.
@@ -217,9 +219,9 @@ if __name__ == "__main__":
     losses = []
     time_steps = []
     initial_time = False
-    state_path = []
+
     while True:
-        if episode_counter == 26:
+        if episode_counter == 25:
             break
         episode_counter += 1
 
@@ -228,17 +230,7 @@ if __name__ == "__main__":
         # Loop over steps within this episode.
         for step_num in range(20):
             # In this episode we will choose the greedy action instead of the random actions.
-            if plot_state_path:
-                if episode_counter == 25:
-                    # Make the greedy action step, plot state path
-                    current_state = agent.state
-                    state_path.append(current_state)
-                    greedy_action = dqn.return_greedy_action(current_state)
-                    transition = agent.step(greedy_action)
-                else:
-                    transition = agent.step()
-            else:
-                transition = agent.step()
+            transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
                 initial_time = time.time()
@@ -248,8 +240,8 @@ if __name__ == "__main__":
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
             # Measure time between steps (and training) in milliseconds for plotting
             time_steps.append(round((time.time() - initial_time) * 1000))
-            # losses.append(np.log(loss)) # log loss
-            losses.append(loss)  # abs loss
+            losses.append(np.log(loss)) # log loss
+            # losses.append(loss)  # abs loss
             # If want to display the environment slower after certain number of episode
             # if counter >= 15:
             #     time.sleep(0.5)
@@ -261,45 +253,53 @@ if __name__ == "__main__":
 
         # Step axis
         ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
-        ax1.set_xlim([rb_batch_size, len(losses) + rb_batch_size])  # make the x axis start at 1
+        ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
-
+        ax1.set_xticks(range(0, 501, 50))
+        plt.ylabel("Log(loss)")
         # Time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = time_steps
         time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (ms)')
+        ax2.set_xlabel('Time (in ms)')
         ax2.set_xlim(ax1.get_xlim())
-
-        plt.ylabel("log(loss)")
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--")
+            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
         plt.show()
-
-        # start both x axis on 0?
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
         # # Because CV plots from top to bottom, origin is top left, we start with the upper row of states
-        # states_x_coords = np.arange(0.05, 1, 0.1)
-        # states_y_coords = np.arange(0.95, 0, -0.1)
-        #
-        # colour_factors = []
-        # for y_coord in states_y_coords:
-        #     for x_coord in states_x_coords:
-        #         input_tensor = torch.tensor([[x_coord, y_coord]])
-        #         colour_factors.append(dqn.return_optimal_action_order(input_tensor))
+        states_x_coords = np.arange(0.05, 1, 0.1)
+        states_y_coords = np.arange(0.95, 0, -0.1)
+
+        colour_factors = []
+        for y_coord in states_y_coords:
+            for x_coord in states_x_coords:
+                input_tensor = torch.tensor([[x_coord, y_coord]])
+                colour_factors.append(dqn.return_optimal_action_order(input_tensor))
 
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
         time.sleep(15)
 
     if plot_state_path:
+        state_path = []
+        agent.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # Take the greedy action step to plot the state path
+            current_state = agent.state
+            state_path.append(current_state)
+            greedy_action = dqn.return_greedy_action(current_state)
+            transition = agent.step(greedy_action)
+            print(transition)
+
         pv = PathVisualisation(1000)
-        pv.draw(state_path)
+        pv.draw(state_path, True, True)
         time.sleep(15)
 

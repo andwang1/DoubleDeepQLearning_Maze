@@ -195,26 +195,15 @@ if __name__ == "__main__":
     losses = []
     time_steps = []
     initial_time = False
-    state_path = []
     while True:
-        if episode_counter == 26:
+        if episode_counter == 25:
             break
         episode_counter += 1
-
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
         for step_num in range(20):
-            # In this episode we will choose the greedy action instead of the random actions.
-            if episode_counter == 25:
-                # Make the greedy action step to plot the state path
-                current_state = agent.state
-                state_path.append(current_state)
-                greedy_action = dqn.return_greedy_action(current_state)
-                transition = agent.step(greedy_action)
-                continue # do not train on these steps
-            else:
-                transition = agent.step()
+            transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
                 initial_time = time.time()
@@ -237,26 +226,23 @@ if __name__ == "__main__":
 
         # Step axis
         ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
-        ax1.set_xlim([rb_batch_size, len(losses) + rb_batch_size])  # make the x axis start at 1
+        ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
-
+        ax1.set_xticks(range(0, 501, 50))
+        plt.ylabel("Log(loss)")
         # Time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = time_steps
         time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (ms)')
+        ax2.set_xlabel('Time (in ms)')
         ax2.set_xlim(ax1.get_xlim())
-
-        plt.ylabel("log(loss)")
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--")
+            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
         plt.show()
-
-        # start both x axis on 0?
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
@@ -270,12 +256,21 @@ if __name__ == "__main__":
                 input_tensor = torch.tensor([[x_coord, y_coord]])
                 colour_factors.append(dqn.return_optimal_action_order(input_tensor))
 
-
         qv = QVisualisation(1000)
         qv.draw(colour_factors)
         time.sleep(15)
 
     if plot_state_path:
+        state_path = []
+        agent.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # Take the greedy action step to plot the state path
+            current_state = agent.state
+            state_path.append(current_state)
+            greedy_action = dqn.return_greedy_action(current_state)
+            transition = agent.step(greedy_action)
+
         pv = PathVisualisation(1000)
         pv.draw(state_path)
         time.sleep(15)

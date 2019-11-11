@@ -65,22 +65,69 @@ class Agent:
         continuous_action = self._discrete_action_to_continuous(discrete_action)
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
         next_state, _ = self.environment.step(self.state, continuous_action)
+        reward = -99
         # IMPLEMENT NEW REWARD FUNCTION, MANHATTAN DISTANCE
-        reward = 1.7 - (abs(next_state[0] - self.environment.goal_state[0]) + abs(next_state[1] - self.environment.goal_state[1]))
+        # reward = 1.7 - (abs(next_state[0] - self.environment.goal_state[0]) + abs(next_state[1] - self.environment.goal_state[1]))
         # MAX DIST
         # reward = 1 - (max(abs(next_state[0] - self.environment.goal_state[0]), abs(
         #     next_state[1] - self.environment.goal_state[1])))
         # UP AND RIGHT
-        if np.linalg.norm(next_state - self.state) < 0.001:
-            reward = -1
+        # REWARD ACTIONS
+        # If standing still
+        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+            # scale negative reward for standing still by the distance from goal state
+            reward = -20
+        # Right
+        elif action in {0}:
+            reward = 4
+        # Left or down
         elif action in {1, 3}:
+            reward = -5
+        # Up
+        elif action in {2}:
+            reward = 20
+
+        # REWARD DISTANCE
+        # If standing still
+        x_movement = self.return_x_distance(self.state) - self.return_x_distance(next_state)
+        y_movement = self.return_y_distance(self.state) - self.return_y_distance(next_state)
+
+        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+            # scale negative reward for standing still by the distance from goal state
             reward = -2
-        elif action in {0, 2}:
-            # if standing still, give a reward of 0, moving against wall
-            # if np.linalg.norm(next_state - self.state) < 0.001:
-            #     reward = 0
-            # else:
-            reward = 2
+        # if distance increases, then penalise
+        elif self.return_final_distance(next_state) > self.return_final_distance(self.state):
+            reward = -1 * self.return_final_distance(next_state)
+        # if the state is closer on x than on y
+        elif self.return_x_distance(self.state) <= self.return_y_distance(self.state):
+            # if move closer, get reward 1, if not move, 0, if away get -1
+            reward = 10 * x_movement
+        elif self.return_x_distance(self.state) > self.return_y_distance(self.state):
+            reward = 10 * y_movement
+
+        # Reward not standing still VIABLE
+        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+            # scale negative reward for standing still by the distance from goal state
+            reward = -0.2
+        # if distance increases, then penalise
+        else:
+            reward = 1 - np.linalg.norm(next_state - self.environment.goal_state)
+
+        # Reward not standing still alt2
+        # if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+        #     # scale negative reward for standing still by the distance from goal state
+        #     reward = -1
+        # # if distance increases, then penalise
+        # else:
+        #     reward = np.linalg.norm(next_state - self.environment.goal_state)
+
+
+        # reward = -np.linalg.norm(next_state - self.goal_state)
+
+        # reward = -np.linalg.norm(next_state - self.goal_state)
+
+
+        # ADD A LINE WHERE WE ARE FULLY GREEDY IE WHEN EPSILON = 0
 
         # Create a transition tuple for this step.
         transition = (self.state, discrete_action, reward, next_state)
@@ -92,7 +139,16 @@ class Agent:
         return transition
 
     def return_final_distance(self, state, metric="m"):
-        return (abs(state[0] - self.environment.goal_state[0]) + abs(state[1] - self.environment.goal_state[1]))
+        if metric =="m":
+            return abs(state[0] - self.environment.goal_state[0]) + abs(state[1] - self.environment.goal_state[1])
+        elif metric == "e":
+            return np.linalg.norm(state - self.environment.goal_state)
+
+    def return_x_distance(self, state):
+        return abs(state[0] - self.environment.goal_state[0])
+
+    def return_y_distance(self, state):
+        return abs(state[1] - self.environment.goal_state[1])
 
     # Function for the agent to compute its reward. In this example, the reward is based on the agent's distance to the goal after the agent takes an action.
     def _compute_reward(self, distance_to_goal):
@@ -270,7 +326,7 @@ if __name__ == "__main__":
     replay_buffer_old = ReplayBuffer()
     replay_buffer_new = ReplayBuffer()
     rb_batch_size = 50
-    optimal_delta = 0.0055
+    optimal_delta = 0.0032
     dqn_old = DQN()
     dqn_new = DQN()
     # Make sure both networks have the same initial weights as the random seed cannot be reinitialised now
@@ -298,17 +354,6 @@ if __name__ == "__main__":
         agent_new.reset()
         # Loop over steps within this episode.
         for step_num in range(20):
-            # # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
-            # if total_steps_counter >= 500:
-            #     # print("greedy episode")
-            #     current_state = agent.state
-            #     greedy_action = dqn.return_greedy_action(current_state)
-            #     transition = agent.step(greedy_action)
-            #     rewards += transition[2]
-            #     # print(transition)
-            #     continue
-
-
             # Every 20 steps update target DQN
             if total_steps_counter % 20 == 0:
                 dqn_old.copy_weights_to_target_dqn()
@@ -359,43 +404,37 @@ if __name__ == "__main__":
                 transition_old = agent_test_old.step(greedy_action_test_old)
                 greedy_action_test_new = dqn_new.return_greedy_action(agent_test_new.state)
                 transition_new = agent_test_new.step_alt_reward(greedy_action_test_new)
-                print(transition_new[2])
-                print(transition_new)
-            print(agent_test_old.state)
-            print(agent_test_new.state)
+                if episode_counter > 23: # DEBUG TODO
+                    print(transition_new)
+            print("test episode done")
+            # print(agent_test_old.state)
+            # print(agent_test_new.state)
 
-            final_distance_old = agent_test_old.return_final_distance(agent_test_old.state)
-            final_distance_new = agent_test_new.return_final_distance(agent_test_new.state)
-            print(final_distance_old)
-            print(final_distance_new)
+            final_distance_old = agent_test_old.return_final_distance(agent_test_old.state, "e")
+            final_distance_new = agent_test_new.return_final_distance(agent_test_new.state, "e")
+            # print(final_distance_old)
+            # print(final_distance_new)
             distances_old.append(final_distance_old)
             distances_new.append(final_distance_new)
 
             total_steps_counter += 1
 
     difference = np.array(distances_old) - np.array(distances_new)
-    print(difference)
+    differences = [round(diff, 3) for diff in difference]
+    print(differences)
     print(distances_old)
     print(distances_new)
     #
     # # Plotting the loss functions as function of steps and time
     if plot_loss:
         # Delta axis
-        ax1 = plt.plot(range(500), distances_old, color="green")
+        plt.plot(range(500), distances_old, color="green", label="old")
         # ax2 = ax1.twiny()
-        ax1.set_xlabel("Delta value")
-        ax2 = plt.plot(range(500), distances_new, color="red")
+        # ax1.set_xlabel("Delta value")
+        plt.plot(range(500), distances_new, color="red")
+        plt.legend()
 
-        # Time axis
-        # ax2 = ax1.twiny()
-        # time_labels_per_episode = time_steps
-        # time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
-        # ax2.set_xticks(time_labels_positions)
-        # ax2.set_xticklabels(time_labels_per_episode)
-        # ax2.set_xlabel('Time (ms)')
-        # ax2.set_xlim(ax1.get_xlim())
-
-        plt.ylabel("Episode rewards")
+        plt.ylabel("Final distance")
 
         # Add vertical lines
         # for step_num in range(500, len(losses) + 500, 20):
@@ -420,8 +459,28 @@ if __name__ == "__main__":
     #     qv.draw(colour_factors)
     #     time.sleep(15)
     #
-    # if plot_state_path:
-    #     pv = PathVisualisation(1000)
-    #     pv.draw(state_path)
-    #     time.sleep(15)
-    #
+    if plot_state_path:
+        state_path_old = []
+        agent_old.reset()
+        state_path_new = []
+        agent_new.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # Take the greedy action step to plot the state path
+            current_state = agent_old.state
+            state_path_old.append(current_state)
+            greedy_action = dqn_old.return_greedy_action(current_state)
+            transition_old = agent_old.step(greedy_action)
+            current_state = agent_new.state
+            state_path_new.append(current_state)
+            greedy_action = dqn_new.return_greedy_action(current_state)
+            transition_new = agent_new.step(greedy_action)
+            print(transition_old)
+            print(transition_new)
+
+        pv_old = PathVisualisation(1000)
+        pv_old.draw(state_path_old, True, True)
+        time.sleep(15)
+        pv_new = PathVisualisation(1000)
+        pv_new.draw(state_path_new, True, True)
+        time.sleep(15)

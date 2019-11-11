@@ -213,7 +213,7 @@ class ReplayBuffer:
 if __name__ == "__main__":
     plot_rewards = False
     plot_qvalues = False
-    plot_state_path = False
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 741321
     environment = Environment(display=False, magnification=1000)
@@ -222,10 +222,12 @@ if __name__ == "__main__":
     rb_batch_size = 50
     episode_rewards = []
     deltas = []
-    optimal_delta = 0.0055
+    optimal_delta = 0.0032
+    # reward 13.474531655656484
+    # For plotting
     # delta_range = [0, 0.003, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.001, 0.02, 0.001)
+    delta_range = np.arange(0.0032, 0.0033, 0.0001)
     for delta in delta_range:
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)
@@ -241,29 +243,17 @@ if __name__ == "__main__":
 
         episode_counter = 0
         total_steps_counter = 0
-        rewards = 0
         while True:
-            if episode_counter == 26:
-                # Get the rewards collected in the final episode
-                episode_rewards.append(agent.total_reward)
+            if episode_counter == 25:
                 break
             episode_counter += 1
-
             # Reset the environment for the start of the episode.
             agent.reset()
             # Loop over steps within this episode.
             for step_num in range(20):
-                # Once we have trained on 500 steps, we can generate one final episode to calculate the sum of rewards, with only the greedy policy
-                if total_steps_counter >= 500:
-                    current_state = agent.state
-                    greedy_action = dqn.return_greedy_action(current_state)
-                    transition = agent.step(greedy_action)
-                    continue
-
                 # Every 20 steps update target DQN
                 if total_steps_counter % 20 == 0:
                     dqn.copy_weights_to_target_dqn()
-
 
                 # Implement epsilon greedy policy, wrt the non-target network
                 greedy_action = dqn.return_greedy_action(agent.state)
@@ -275,13 +265,25 @@ if __name__ == "__main__":
 
                 replay_buffer.add(transition)
                 total_steps_counter += 1
+
                 if len(replay_buffer) < rb_batch_size:
                     continue
                 # Calculate loss using target network
                 loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
 
+
+        # Collect rewards after training
+        agent.reset()
+        for step_num in range(20):
+            current_state = agent.state
+            greedy_action = dqn.return_greedy_action(current_state)
+            transition = agent.step(greedy_action)
+        # Get the rewards collected in the final episode
+        episode_rewards.append(agent.total_reward)
+
     print(episode_rewards)
     print(deltas)
+
 
     # Plotting the reward functions as function of steps and time
     if plot_rewards:
@@ -289,7 +291,6 @@ if __name__ == "__main__":
         ax1.set_xlabel("Delta value")
         plt.ylabel("Episode rewards")
         plt.show()
-
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:
@@ -307,8 +308,19 @@ if __name__ == "__main__":
         qv.draw(colour_factors)
         time.sleep(15)
 
+    # MAKE SURE OPTIMAL DELTA IS SELECTED
     if plot_state_path:
-        pv = PathVisualisation(1000)
-        pv.draw(state_path)
-        time.sleep(15)
+        state_path = []
+        agent.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # Take the greedy action step to plot the state path
+            current_state = agent.state
+            state_path.append(current_state)
+            greedy_action = dqn.return_greedy_action(current_state)
+            transition = agent.step(greedy_action)
+            print(transition)
 
+        pv = PathVisualisation(1000)
+        pv.draw(state_path, True, True)
+        time.sleep(15)

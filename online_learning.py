@@ -8,7 +8,7 @@ import collections
 
 # Import the environment module
 from environment import Environment
-
+from path_visualisation import PathVisualisation
 
 # The Agent class allows the agent to interact with the environment.
 class Agent:
@@ -32,9 +32,12 @@ class Agent:
         self.total_reward = 0.0
 
     # Function to make the agent take one step in the environment.
-    def step(self):
+    def step(self, action: int = False):
         # Choose an action.
-        discrete_action = np.random.randint(0, 4)
+        if action is not False:
+            discrete_action = action
+        else:
+            discrete_action = np.random.randint(0, 4)
         # Convert the discrete action into a continuous action.
         continuous_action = self._discrete_action_to_continuous(discrete_action)
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
@@ -124,6 +127,12 @@ class DQN:
         reward_tensor = torch.tensor([[reward]]) # convert reward scalar into 1x1 tensor as MSELoss takes tensors
         return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
 
+    def return_greedy_action(self, current_state):
+        input_tensor = torch.tensor(current_state).unsqueeze(0)
+        network_prediction = self.q_network.forward(input_tensor)
+        predictions_np_array = network_prediction.detach().numpy().ravel()
+        print(predictions_np_array)  # DEBUG TODO
+        return np.argmax(predictions_np_array)
 
 
 
@@ -159,31 +168,29 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot = True
+    plot_loss = True
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
-    # You should leave this as 0, for consistency across different runs (Deep Reinforcement Learning is highly sensitive to different random seeds, so keeping this the same throughout will help you debug your code).
-    CID = 1
+    CID = 741321
     np.random.seed(CID)
     torch.manual_seed(CID)
 
     # Create an environment.
-    # If display is True, then the environment will be displayed after every agent step. This can be set to False to speed up training time. The evaluation in part 2 of the coursework will be done based on the time with display=False.
-    # Magnification determines how big the window will be when displaying the environment on your monitor. For desktop PCs, a value of 1000 should be about right. For laptops, a value of 500 should be about right. Note that this value does not affect the underlying state space or the learning, just the visualisation of the environment.
-    environment = Environment(display=True, magnification=1000)
+    environment = Environment(display=False, magnification=1000)
     # Create an agent
     agent = Agent(environment)
     # Create a DQN (Deep Q-Network)
     dqn = DQN()
 
     # Loop over episodes
-    counter = 0 #TODO
+    episode_counter = 0
     losses = []
     time_steps = []
     initial_time = False
     while True:
-        if counter == 25:#TODO
+        if episode_counter == 25:
             break
-        counter +=1#TODO
+        episode_counter += 1
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode. The episode length here is 20.
@@ -196,35 +203,51 @@ if __name__ == "__main__":
             time_steps.append(round((time.time() - initial_time) * 1000)) #time taken in milliseconds
             # losses.append(np.log(loss)) # y axis should have log scale
             losses.append(loss)  # abs loss
-            if counter >= 15: # TODO
-                time.sleep(0.5)
+            # if episode_counter >= 15: # TODO
+            #     time.sleep(0.5)
 
     # Reset so time starts at 0, take the time equal to 0 before the first training
     time_steps = np.array(time_steps)
     time_steps = time_steps - time_steps[0]
     rb_batch_size = 50
 
-    if plot:
-        ax1 = sns.lineplot(range(1, len(losses) + 1), losses)
-        ax1.set_xlim([1, len(losses) + 1]) # make the x axis start at 1
+    if plot_loss:
+        ax1 = sns.lineplot(range(len(losses)), losses)
+        ax1.set_xlim([0, len(losses) + 1]) # make the x axis start at 0
         ax1.set_xlabel("No. of steps")
-        plt.ylabel("log(loss)")
+        ax1.set_xticks(range(0, 501, 50))
+        plt.ylabel("Log(loss)")
 
         # time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = [time_steps[i] for i in range(0, len(losses), rb_batch_size)]
         time_labels_per_episode.append(time_steps[-1])
-        print(time_labels_per_episode)
         time_labels_positions = [i for i in range(0, len(losses), rb_batch_size)]
         time_labels_positions.append(len(losses))
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (ms)')
+        ax2.set_xlabel('Time (in ms)')
         ax2.set_xlim(ax1.get_xlim())
 
         for step_num in range(0, len(losses), 20):
             if step_num == len(losses):
                 break
-            ax1.axvline(step_num, ls="--")
+            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
 
         plt.show()
+
+    if plot_state_path:
+        state_path = []
+        agent.reset()
+        # Loop over steps within this episode.
+        for step_num in range(20):
+            # Take the greedy action step to plot the state path
+            current_state = agent.state
+            state_path.append(current_state)
+            greedy_action = dqn.return_greedy_action(current_state)
+            transition = agent.step(greedy_action)
+            # print(transition) # DEBUG TODO
+
+        pv = PathVisualisation(1000)
+        pv.draw(state_path, True, True)
+        time.sleep(15)
