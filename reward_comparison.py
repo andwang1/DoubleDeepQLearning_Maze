@@ -65,69 +65,12 @@ class Agent:
         continuous_action = self._discrete_action_to_continuous(discrete_action)
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
         next_state, _ = self.environment.step(self.state, continuous_action)
-        reward = -99
-        # IMPLEMENT NEW REWARD FUNCTION, MANHATTAN DISTANCE
-        # reward = 1.7 - (abs(next_state[0] - self.environment.goal_state[0]) + abs(next_state[1] - self.environment.goal_state[1]))
-        # MAX DIST
-        # reward = 1 - (max(abs(next_state[0] - self.environment.goal_state[0]), abs(
-        #     next_state[1] - self.environment.goal_state[1])))
-        # UP AND RIGHT
-        # REWARD ACTIONS
-        # If standing still
-        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
-            # scale negative reward for standing still by the distance from goal state
-            reward = -20
-        # Right
-        elif action in {0}:
-            reward = 4
-        # Left or down
-        elif action in {1, 3}:
-            reward = -5
-        # Up
-        elif action in {2}:
-            reward = 20
 
-        # REWARD DISTANCE
-        # If standing still
-        x_movement = self.return_x_distance(self.state) - self.return_x_distance(next_state)
-        y_movement = self.return_y_distance(self.state) - self.return_y_distance(next_state)
-
+        # Penalty for running into walls or obstacles
         if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
-            # scale negative reward for standing still by the distance from goal state
-            reward = -2
-        # if distance increases, then penalise
-        elif self.return_final_distance(next_state) > self.return_final_distance(self.state):
-            reward = -1 * self.return_final_distance(next_state)
-        # if the state is closer on x than on y
-        elif self.return_x_distance(self.state) <= self.return_y_distance(self.state):
-            # if move closer, get reward 1, if not move, 0, if away get -1
-            reward = 10 * x_movement
-        elif self.return_x_distance(self.state) > self.return_y_distance(self.state):
-            reward = 10 * y_movement
-
-        # Reward not standing still VIABLE
-        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
-            # scale negative reward for standing still by the distance from goal state
             reward = -0.15
-        # if distance increases, then penalise
         else:
             reward = 1 - np.linalg.norm(next_state - self.environment.goal_state)
-
-        # Reward not standing still alt2
-        # if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
-        #     # scale negative reward for standing still by the distance from goal state
-        #     reward = -1
-        # # if distance increases, then penalise
-        # else:
-        #     reward = np.linalg.norm(next_state - self.environment.goal_state)
-
-
-        # reward = -np.linalg.norm(next_state - self.goal_state)
-
-        # reward = -np.linalg.norm(next_state - self.goal_state)
-
-
-        # ADD A LINE WHERE WE ARE FULLY GREEDY IE WHEN EPSILON = 0
 
         # Create a transition tuple for this step.
         transition = (self.state, discrete_action, reward, next_state)
@@ -421,9 +364,9 @@ if __name__ == "__main__":
 
     difference = np.array(distances_old) - np.array(distances_new)
     differences = [round(diff, 3) for diff in difference]
-    print(differences)
-    print(distances_old)
-    print(distances_new)
+    # print(differences)
+    # print(distances_old)
+    # print(distances_new)
     #
     # # Plotting the loss functions as function of steps and time
     if plot_loss:
@@ -433,7 +376,6 @@ if __name__ == "__main__":
         # ax1.set_xlabel("Delta value")
         plt.plot(range(500), distances_new, color="red")
         plt.legend()
-
         plt.ylabel("Final distance")
 
         # Add vertical lines
