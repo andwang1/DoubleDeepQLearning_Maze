@@ -213,7 +213,7 @@ class ReplayBuffer:
 if __name__ == "__main__":
     plot_rewards = False
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     environment = Environment(display=False, magnification=1000)
@@ -222,13 +222,14 @@ if __name__ == "__main__":
     rb_batch_size = 50
     episode_rewards = []
     deltas = []
-    optimal_delta = 0.0017
+    optimal_delta = 0.00258
     # reward 13.134315401315689
     # For plotting
     # delta_range = [0, 0.003, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.0016, 0.00171, 0.000001)
+    delta_range = np.arange(0.00250, 0.00265, 0.00001)
     for delta in delta_range:
+        print("step")
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)
         torch.manual_seed(CID)
