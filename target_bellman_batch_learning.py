@@ -191,12 +191,12 @@ class ReplayBuffer:
         actions = []
         rewards = []
         next_states = []
-        for _ in range(batch_size):
-            transition = self.replay_buffer[np.random.randint(len(self))]
-            current_states.append(transition[0])  # 1x2
-            actions.append([transition[1]])  # 1x1
-            rewards.append([transition[2]])  # 1x1
-            next_states.append(transition[3])  # 1x2
+        indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False)
+        for index in indices:
+            current_states.append(self.replay_buffer[index][0])  # 1x2
+            actions.append([self.replay_buffer[index][1]])  # 1x1
+            rewards.append([self.replay_buffer[index][2]])  # 1x1
+            next_states.append(self.replay_buffer[index][3])  # 1x2
         return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states)  # MSE needs float values, so cast rewards to floats
 
