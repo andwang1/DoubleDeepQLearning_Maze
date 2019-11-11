@@ -3,6 +3,7 @@ import numpy as np
 import torch
 import time
 import seaborn as sns
+from datetime import datetime
 import matplotlib.pyplot as plt
 import collections
 
@@ -198,25 +199,31 @@ if __name__ == "__main__":
             # Step the agent once, and get the transition tuple for this step
             transition = agent.step()
             if initial_time is False:
-                initial_time = time.time()
+                initial_time = datetime.now()
             loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
-            time_steps.append(round((time.time() - initial_time) * 1000)) #time taken in milliseconds
-            losses.append(np.log10(loss)) # y axis should have log scale
-            # losses.append(loss)  # abs loss
+            time_steps.append(round((datetime.now() - initial_time).total_seconds() * 1000)) #time taken in milliseconds
+            # losses.append(np.log10(loss)) # y axis should have log scale
+            losses.append(loss)  # abs loss
             # if episode_counter >= 15: # TODO
             #     time.sleep(0.5)
 
     # Reset so time starts at 0, take the time equal to 0 before the first training
     time_steps = np.array(time_steps)
     time_steps = time_steps - time_steps[0]
+    print(time_steps)
     rb_batch_size = 50
 
     if plot_loss:
-        ax1 = sns.lineplot(range(len(losses)), losses)
-        ax1.set_xlim([0, len(losses) + 1]) # make the x axis start at 0
+        ax1 = sns.lineplot(range(1, len(losses) + 1), losses)
+
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
-        plt.ylabel("Log(loss)")
+        ax1.set_xlim([1, len(losses)])  # make the x axis start at 1
+        plt.yscale("log")
+        # Turn off small ticks in between created by log
+        plt.minorticks_off()
+        plt.ylabel("Loss")
+        plt.title("Online Learning")
 
         # time axis
         ax2 = ax1.twiny()
