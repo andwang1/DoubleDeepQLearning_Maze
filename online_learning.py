@@ -169,7 +169,7 @@ class ReplayBuffer:
 # Main entry point
 if __name__ == "__main__":
     plot_loss = True
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -201,8 +201,8 @@ if __name__ == "__main__":
                 initial_time = time.time()
             loss = dqn.train_q_network(transition) # COMPUTES GRADIENT AND UPDATES WEIGHTS
             time_steps.append(round((time.time() - initial_time) * 1000)) #time taken in milliseconds
-            # losses.append(np.log(loss)) # y axis should have log scale
-            losses.append(loss)  # abs loss
+            losses.append(np.log10(loss)) # y axis should have log scale
+            # losses.append(loss)  # abs loss
             # if episode_counter >= 15: # TODO
             #     time.sleep(0.5)
 

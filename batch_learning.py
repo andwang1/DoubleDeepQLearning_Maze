@@ -173,9 +173,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
             # Measure time between steps (and training) in milliseconds for plotting
             time_steps.append(round((time.time() - initial_time) * 1000))
-            losses.append(np.log(loss)) # log loss
+            losses.append(np.log10(loss)) # log loss
             # losses.append(loss)  # abs loss
             # If want to display the environment slower after certain number of episode
             # if counter >= 15:
