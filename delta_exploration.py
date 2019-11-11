@@ -211,7 +211,7 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_rewards = False
+    plot_rewards = True
     plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
@@ -222,12 +222,12 @@ if __name__ == "__main__":
     rb_batch_size = 50
     episode_rewards = []
     deltas = []
-    optimal_delta = 0.0032
+    optimal_delta = 0.0017
     # reward 13.474531655656484
     # For plotting
     # delta_range = [0, 0.003, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.0032, 0.0033, 0.0001)
+    delta_range = np.arange(0.0017, 0.0018, 0.0001)
     for delta in delta_range:
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)
@@ -252,6 +252,7 @@ if __name__ == "__main__":
             # Loop over steps within this episode.
             for step_num in range(20):
                 # Every 20 steps update target DQN
+                total_steps_counter += 1
                 if total_steps_counter % 20 == 0:
                     dqn.copy_weights_to_target_dqn()
 
@@ -264,7 +265,7 @@ if __name__ == "__main__":
                     agent.epsilon = max(agent.epsilon - delta, 0)
 
                 replay_buffer.add(transition)
-                total_steps_counter += 1
+
 
                 if len(replay_buffer) < rb_batch_size:
                     continue

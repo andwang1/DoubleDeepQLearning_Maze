@@ -153,8 +153,9 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
-        predictions_np_array = network_prediction.detach().numpy().ravel()
-        return np.argmax(predictions_np_array)
+        # predictions_np_array = network_prediction.detach().numpy().ravel()
+        # return np.argmax(predictions_np_array)
+        return network_prediction.argmax(axis=1)
 
     def return_greedy_actions_tensor(self, tensor_states):
         tensor_network_predictions = self.q_network.forward(tensor_states)
@@ -201,9 +202,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -231,15 +232,14 @@ if __name__ == "__main__":
             break
         episode_counter += 1
 
-        # Every 20 steps update target DQN
-        if total_steps_counter % 20 == 0:
-            dqn.copy_weights_to_target_dqn()
-
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
         for step_num in range(20):
             total_steps_counter += 1
+            # Every 20 steps update target DQN
+            if total_steps_counter % 20 == 0:
+                dqn.copy_weights_to_target_dqn()
             # In this episode we will choose the greedy action instead of the random actions.
             transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
@@ -252,12 +252,13 @@ if __name__ == "__main__":
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
             # Measure time between steps (and training) in milliseconds for plotting
             time_steps.append(round((time.time() - initial_time) * 1000))
-            losses.append(np.log(loss)) # log loss
-            # losses.append(loss)  # abs loss
+            # losses.append(np.log(loss)) # log loss
+            losses.append(loss)  # abs loss
             # If want to display the environment slower after certain number of episode
             # if counter >= 15:
             #     time.sleep(0.5)
 
+    print(len(losses))
     # Plotting the loss functions as function of steps and time
     if plot_loss:
         time_steps = np.array(time_steps)
