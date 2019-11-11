@@ -225,6 +225,8 @@ if __name__ == "__main__":
         plt.ylabel("Loss")
         plt.title("Online Learning")
 
+        # TODO LEGEND THAT INCLUDES THE VERTICAL LINES AS EPISODE STARTS
+
         # time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = [time_steps[i] for i in range(0, len(losses), rb_batch_size)]
