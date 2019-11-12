@@ -159,7 +159,7 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
-        # print(network_prediction)
+        print(network_prediction)
         # print(int(network_prediction.argmax()))
         return int(network_prediction.argmax())
 
@@ -225,9 +225,9 @@ if __name__ == "__main__":
     optimal_delta = 0.00258
     # reward 13.192618285762457
     # For plotting
-    # delta_range = [0, 0.003, optimal_delta, 0.011, 1]
+    # delta_range = [0, 0.001, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.00200, 0.00300, 0.00001)
+    delta_range = np.arange(0, 0.001, 0.001)
     for delta in delta_range:
         print("step")
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
@@ -261,6 +261,7 @@ if __name__ == "__main__":
                 greedy_action = dqn.return_greedy_action(agent.state)
                 epsilon_greedy_action = agent.epsilon_greedy_policy(greedy_action)
                 transition = agent.step(epsilon_greedy_action)
+                print(transition)
                 # Decrease the epsilon every step
                 if agent.epsilon > 0:
                     agent.epsilon = max(agent.epsilon - delta, 0)
@@ -280,6 +281,7 @@ if __name__ == "__main__":
             current_state = agent.state
             greedy_action = dqn.return_greedy_action(current_state)
             transition = agent.step(greedy_action)
+            print(transition)
         # Get the rewards collected in the final episode
         episode_rewards.append(agent.total_reward)
 

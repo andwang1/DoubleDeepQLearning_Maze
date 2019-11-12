@@ -227,7 +227,7 @@ if __name__ == "__main__":
     deltas = []
     optimal_delta = 0.0055
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.01, 0.9, 0.01)
+    delta_range = np.arange(0.001, 0.002, 0.01)
     for delta in delta_range:
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
         np.random.seed(CID)

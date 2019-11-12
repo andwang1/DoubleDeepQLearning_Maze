@@ -196,7 +196,7 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
         # Reset the environment for the start of the episode.

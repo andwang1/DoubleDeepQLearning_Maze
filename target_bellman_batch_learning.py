@@ -228,7 +228,7 @@ if __name__ == "__main__":
     # initialise target network to same weights as our q network
     dqn.copy_weights_to_target_dqn()
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
 
