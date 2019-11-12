@@ -144,6 +144,7 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
+        print(network_prediction)
         predictions_np_array = network_prediction.detach().numpy().ravel()
         return np.argmax(predictions_np_array)
 
@@ -165,17 +166,18 @@ class ReplayBuffer:
         next_states = []
         indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False)
         for index in indices:
-            current_states.append(self.replay_buffer[index][0])  # 1x2
-            actions.append([self.replay_buffer[index][1]])  # 1x1
-            rewards.append([self.replay_buffer[index][2]])  # 1x1
-            next_states.append(self.replay_buffer[index][3])  # 1x2
+            transition = self.replay_buffer[index]
+            current_states.append(transition[0])  # 1x2
+            actions.append([transition[1]])  # 1x1
+            rewards.append([transition[2]])  # 1x1
+            next_states.append(transition[3])  # 1x2
         return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states)  # MSE needs float values, so cast rewards to floats
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
-    plot_qvalues = True
+    plot_loss = True
+    plot_qvalues = False
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
@@ -190,6 +192,8 @@ if __name__ == "__main__":
     # Create a ReplayBuffer and batch size
     replay_buffer = ReplayBuffer()
     rb_batch_size = 50
+    print("obstacle")
+    print(dqn.return_greedy_action([0.35, 0.25]))
 
     # Loop over episodes
     episode_counter = 0
@@ -197,7 +201,7 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
         # Reset the environment for the start of the episode.
@@ -205,6 +209,8 @@ if __name__ == "__main__":
         # Loop over steps within this episode.
         for step_num in range(20):
             transition = agent.step()
+            print(transition) # TODO
+            print(dqn.return_greedy_action(transition[0]))
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
                 initial_time = datetime.now()
@@ -284,5 +290,5 @@ if __name__ == "__main__":
             print(transition)
 
         pv = PathVisualisation(1000)
-        pv.draw(state_path)
+        pv.draw(state_path, True)
         time.sleep(15)

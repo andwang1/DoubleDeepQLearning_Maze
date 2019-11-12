@@ -202,10 +202,11 @@ class ReplayBuffer:
         next_states = []
         indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False)
         for index in indices:
-            current_states.append(self.replay_buffer[index][0])  # 1x2
-            actions.append([self.replay_buffer[index][1]])  # 1x1
-            rewards.append([self.replay_buffer[index][2]])  # 1x1
-            next_states.append(self.replay_buffer[index][3])  # 1x2
+            transition = self.replay_buffer[index]
+            current_states.append(transition[0])  # 1x2
+            actions.append([transition[1]])  # 1x1
+            rewards.append([transition[2]])  # 1x1
+            next_states.append(transition[3])  # 1x2
         return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states)  # MSE needs float values, so cast rewards to floats
 
@@ -213,7 +214,7 @@ class ReplayBuffer:
 if __name__ == "__main__":
     plot_rewards = False
     plot_qvalues = False
-    plot_state_path = False
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 741321
     environment = Environment(display=False, magnification=1000)
@@ -227,7 +228,7 @@ if __name__ == "__main__":
     # For plotting
     # delta_range = [0, 0.003, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.00200, 0.00300, 0.00001)
+    delta_range = np.arange(0.00258, 0.00259, 0.00001)
     for delta in delta_range:
         print("step")
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
