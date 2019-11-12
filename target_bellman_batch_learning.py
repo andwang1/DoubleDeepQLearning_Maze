@@ -274,7 +274,7 @@ if __name__ == "__main__":
         # Turn off small ticks in between created by log
         plt.minorticks_off()
         plt.ylabel("Loss")
-        plt.title("Bellman Batch Target Learning")
+        plt.title("Target Network Learning - Gamma = 0.9")
         # Time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = time_steps

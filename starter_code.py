@@ -138,6 +138,32 @@ class Agent:
         # Return the transition
         return transition
 
+    def step_sparse_reward(self, action: int = False):
+        # Choose an action.
+        if action is not False:
+            discrete_action = action
+        else:
+            discrete_action = np.random.randint(0, 4)
+        # Convert the discrete action into a continuous action.
+        continuous_action = self._discrete_action_to_continuous(discrete_action)
+        # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
+        next_state, _ = self.environment.step(self.state, continuous_action)
+
+        # Penalty for running into walls or obstacles
+        if self.return_final_distance(next_state, "m") <= 0.05:
+            reward = 1
+        else:
+            reward = 0
+
+        # Create a transition tuple for this step.
+        transition = (self.state, discrete_action, reward, next_state)
+        # Set the agent's state for the next step, as the next state from this step
+        self.state = next_state
+        # Update the agent's reward for this episode
+        self.total_reward += reward
+        # Return the transition
+        return transition
+
     def return_final_distance(self, state, metric="m"):
         if metric =="m":
             return abs(state[0] - self.environment.goal_state[0]) + abs(state[1] - self.environment.goal_state[1])
@@ -258,7 +284,7 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
-        # print(network_prediction)
+        print(network_prediction)
         # print(int(network_prediction.argmax()))
         return int(network_prediction.argmax())
 
@@ -327,7 +353,7 @@ if __name__ == "__main__":
     replay_buffer_old = ReplayBuffer()
     replay_buffer_new = ReplayBuffer()
     rb_batch_size = 50
-    optimal_delta = 0.0017
+    optimal_delta = 0.00258
     dqn_old = DQN()
     dqn_new = DQN()
     # Make sure both networks have the same initial weights as the random seed cannot be reinitialised now
@@ -369,7 +395,7 @@ if __name__ == "__main__":
             # This is with the new reward
             greedy_action_new = dqn_new.return_greedy_action(agent_new.state)
             epsilon_greedy_action_new = agent_new.epsilon_greedy_policy(greedy_action_new)
-            transition_new = agent_new.step_alt_reward(epsilon_greedy_action_new)
+            transition_new = agent_new.step_sparse_reward(epsilon_greedy_action_new)
             # print(f"greedy {greedy_action}, epsilongree {epsilon_greedy_action}, epsi {agent.epsilon}")
             # print(dqn.q_network.forward(torch.tensor(current_state).unsqueeze(0))) # print qvalue predictions
             
@@ -405,7 +431,8 @@ if __name__ == "__main__":
                 greedy_action_test_old = dqn_old.return_greedy_action(agent_test_old.state)
                 transition_old = agent_test_old.step(greedy_action_test_old)
                 greedy_action_test_new = dqn_new.return_greedy_action(agent_test_new.state)
-                transition_new = agent_test_new.step_alt_reward(greedy_action_test_new)
+                transition_new = agent_test_new.step_sparse_reward(greedy_action_test_new)
+                print(transition_new)
                 if episode_counter > 23: # DEBUG TODO
                     print(transition_new)
             print("test episode done")

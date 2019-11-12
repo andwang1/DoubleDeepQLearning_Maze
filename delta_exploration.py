@@ -213,7 +213,7 @@ class ReplayBuffer:
 if __name__ == "__main__":
     plot_rewards = False
     plot_qvalues = False
-    plot_state_path = False
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 741321
     environment = Environment(display=False, magnification=1000)
@@ -227,7 +227,9 @@ if __name__ == "__main__":
     # For plotting
     # delta_range = [0, 0.001, optimal_delta, 0.011, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0, 0.001, 0.001)
+    delta_range = np.arange(0.00258, 0.00259, 0.001)
+    print("begin")
+
     for delta in delta_range:
         print("step")
         # RESET SEED IN BETWEEN DELTAS SO EACH RUN IS ON THE SAME RANDOM SEQUENCE, to allow comparison
@@ -237,6 +239,7 @@ if __name__ == "__main__":
         # Create a new DQN (Deep Q-Network)
         dqn = DQN()
         dqn.copy_weights_to_target_dqn()
+        print(dqn.return_greedy_action([[0.15, 0.95]])) #TODO
         # Create a new agent
         agent = Agent(environment)
         # Clear the replay_buffer
@@ -285,6 +288,23 @@ if __name__ == "__main__":
         # Get the rewards collected in the final episode
         episode_rewards.append(agent.total_reward)
 
+        # MAKE SURE OPTIMAL DELTA IS SELECTED
+        if plot_state_path:
+            state_path = []
+            agent.reset()
+            # Loop over steps within this episode.
+            for step_num in range(20):
+                # Take the greedy action step to plot the state path
+                current_state = agent.state
+                state_path.append(current_state)
+                greedy_action = dqn.return_greedy_action(current_state)
+                transition = agent.step(greedy_action)
+                print(transition)
+
+            pv = PathVisualisation(1000)
+            pv.draw(state_path, True, True)
+            time.sleep(15)
+
     print(episode_rewards)
     print(deltas)
 
@@ -312,19 +332,19 @@ if __name__ == "__main__":
         qv.draw(colour_factors)
         time.sleep(15)
 
-    # MAKE SURE OPTIMAL DELTA IS SELECTED
-    if plot_state_path:
-        state_path = []
-        agent.reset()
-        # Loop over steps within this episode.
-        for step_num in range(20):
-            # Take the greedy action step to plot the state path
-            current_state = agent.state
-            state_path.append(current_state)
-            greedy_action = dqn.return_greedy_action(current_state)
-            transition = agent.step(greedy_action)
-            print(transition)
-
-        pv = PathVisualisation(1000)
-        pv.draw(state_path, True, True)
-        time.sleep(15)
+    # # MAKE SURE OPTIMAL DELTA IS SELECTED
+    # if plot_state_path:
+    #     state_path = []
+    #     agent.reset()
+    #     # Loop over steps within this episode.
+    #     for step_num in range(20):
+    #         # Take the greedy action step to plot the state path
+    #         current_state = agent.state
+    #         state_path.append(current_state)
+    #         greedy_action = dqn.return_greedy_action(current_state)
+    #         transition = agent.step(greedy_action)
+    #         print(transition)
+    #
+    #     pv = PathVisualisation(1000)
+    #     pv.draw(state_path, True, True)
+    #     time.sleep(15)

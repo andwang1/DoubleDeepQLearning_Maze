@@ -223,7 +223,7 @@ if __name__ == "__main__":
         # Turn off small ticks in between created by log
         plt.minorticks_off()
         plt.ylabel("Loss")
-        plt.title("Online Learning")
+        plt.title("Online Learning - Gamma = 0")
 
         # TODO LEGEND THAT INCLUDES THE VERTICAL LINES AS EPISODE STARTS
 

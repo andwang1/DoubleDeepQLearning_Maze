@@ -261,7 +261,7 @@ if __name__ == "__main__":
         # Turn off small ticks in between created by log
         plt.minorticks_off()
         plt.ylabel("Loss")
-        plt.title("Bellman Batch Learning")
+        plt.title("Batch Learning - Gamma = 0.9")
 
         # Time axis
         ax2 = ax1.twiny()
