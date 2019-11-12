@@ -93,7 +93,7 @@ class Network(torch.nn.Module):
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 0.9
+    gamma = 0.4
     # The class initialisation function.
     def __init__(self):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -188,18 +188,19 @@ class ReplayBuffer:
         next_states = []
         indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False)
         for index in indices:
-            current_states.append(self.replay_buffer[index][0])  # 1x2
-            actions.append([self.replay_buffer[index][1]])  # 1x1
-            rewards.append([self.replay_buffer[index][2]])  # 1x1
-            next_states.append(self.replay_buffer[index][3])  # 1x2
+            transition = self.replay_buffer[index]
+            current_states.append(transition[0])  # 1x2
+            actions.append([transition[1]])  # 1x1
+            rewards.append([transition[2]])  # 1x1
+            next_states.append(transition[3])  # 1x2
         return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states)  # MSE needs float values, so cast rewards to floats
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -221,14 +222,14 @@ if __name__ == "__main__":
     initial_time = False
 
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(20):
+        for step_num in range(200):
             # In this episode we will choose the greedy action instead of the random actions.
             transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
@@ -240,8 +241,8 @@ if __name__ == "__main__":
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
             # Measure time between steps (and training) in milliseconds for plotting
             time_steps.append(round((time.time() - initial_time) * 1000))
-            losses.append(np.log(loss)) # log loss
-            # losses.append(loss)  # abs loss
+            # losses.append(np.log(loss)) # log loss
+            losses.append(loss)  # abs loss
             # If want to display the environment slower after certain number of episode
             # if counter >= 15:
             #     time.sleep(0.5)
@@ -256,7 +257,12 @@ if __name__ == "__main__":
         ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
-        plt.ylabel("Log(loss)")
+        plt.yscale("log")
+        # Turn off small ticks in between created by log
+        plt.minorticks_off()
+        plt.ylabel("Loss")
+        plt.title("Bellman Batch Learning")
+
         # Time axis
         ax2 = ax1.twiny()
         time_labels_per_episode = time_steps

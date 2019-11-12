@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 import time
+from datetime import datetime
 import seaborn as sns
 import matplotlib.pyplot as plt
 import collections
@@ -143,6 +144,7 @@ class DQN:
     def return_greedy_action(self, current_state):
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
+        print(network_prediction)
         predictions_np_array = network_prediction.detach().numpy().ravel()
         return np.argmax(predictions_np_array)
 
@@ -164,10 +166,11 @@ class ReplayBuffer:
         next_states = []
         indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False)
         for index in indices:
-            current_states.append(self.replay_buffer[index][0])  # 1x2
-            actions.append([self.replay_buffer[index][1]])  # 1x1
-            rewards.append([self.replay_buffer[index][2]])  # 1x1
-            next_states.append(self.replay_buffer[index][3])  # 1x2
+            transition = self.replay_buffer[index]
+            current_states.append(transition[0])  # 1x2
+            actions.append([transition[1]])  # 1x1
+            rewards.append([transition[2]])  # 1x1
+            next_states.append(transition[3])  # 1x2
         return torch.tensor(current_states), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states)  # MSE needs float values, so cast rewards to floats
 
@@ -189,6 +192,8 @@ if __name__ == "__main__":
     # Create a ReplayBuffer and batch size
     replay_buffer = ReplayBuffer()
     rb_batch_size = 50
+    print("obstacle")
+    print(dqn.return_greedy_action([0.35, 0.25]))
 
     # Loop over episodes
     episode_counter = 0
@@ -204,17 +209,21 @@ if __name__ == "__main__":
         # Loop over steps within this episode.
         for step_num in range(20):
             transition = agent.step()
+            print(transition) # TODO
+            print(dqn.return_greedy_action(transition[0]))
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
             if initial_time is False:
-                initial_time = time.time()
+                initial_time = datetime.now()
             replay_buffer.add(transition)
             if len(replay_buffer) < rb_batch_size:
+                # Take time each step, even if we dont train
+                time_steps.append(round((datetime.now() - initial_time).total_seconds() * 1000)) #time taken in milliseconds
                 continue
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
             # Measure time between steps (and training) in milliseconds for plotting
-            time_steps.append(round((time.time() - initial_time) * 1000))
-            losses.append(np.log10(loss)) # log loss
-            # losses.append(loss)  # abs loss
+            time_steps.append(round((datetime.now() - initial_time).total_seconds() * 1000)) #time taken in milliseconds
+            # losses.append(np.log10(loss)) # log loss
+            losses.append(loss)  # abs loss
             # If want to display the environment slower after certain number of episode
             # if counter >= 15:
             #     time.sleep(0.5)
@@ -223,17 +232,25 @@ if __name__ == "__main__":
     if plot_loss:
         time_steps = np.array(time_steps)
         time_steps = time_steps - time_steps[0]
+        # print(len(time_steps))
+        # print(len(losses))
 
         # Step axis
         ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
-        ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
-        plt.ylabel("Log(loss)")
+        ax1.set_xlim([1, len(losses) + rb_batch_size - 1])  # make the x axis start at 1
+        plt.yscale("log")
+        # Turn off small ticks in between created by log
+        plt.minorticks_off()
+        plt.ylabel("Loss")
+        plt.title("Batch Learning")
         # Time axis
         ax2 = ax1.twiny()
-        time_labels_per_episode = time_steps
-        time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
+        time_labels_per_episode = [time_steps[i] for i in range(0, len(losses) + rb_batch_size - 1, rb_batch_size)]
+        time_labels_per_episode.append(time_steps[-1])
+        time_labels_positions = list(range(0, len(losses) + rb_batch_size, rb_batch_size))
+        # time_labels_positions.append(len(losses) + rb_batch_size - 1)
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
         ax2.set_xlabel('Time (in ms)')
@@ -270,7 +287,8 @@ if __name__ == "__main__":
             state_path.append(current_state)
             greedy_action = dqn.return_greedy_action(current_state)
             transition = agent.step(greedy_action)
+            print(transition)
 
         pv = PathVisualisation(1000)
-        pv.draw(state_path)
+        pv.draw(state_path, True)
         time.sleep(15)
