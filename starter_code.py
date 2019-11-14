@@ -138,43 +138,7 @@ class Agent:
         # Return the transition
         return transition
 
-    def step_sparse_reward(self, action: int = False):
-        # Choose an action.
-        if action is not False:
-            discrete_action = action
-        else:
-            discrete_action = np.random.randint(0, 4)
-        # Convert the discrete action into a continuous action.
-        continuous_action = self._discrete_action_to_continuous(discrete_action)
-        # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
-        next_state, _ = self.environment.step(self.state, continuous_action)
 
-        # Penalty for running into walls or obstacles
-        if self.return_final_distance(next_state, "m") <= 0.05:
-            reward = 1
-        else:
-            reward = 0
-
-        # Create a transition tuple for this step.
-        transition = (self.state, discrete_action, reward, next_state)
-        # Set the agent's state for the next step, as the next state from this step
-        self.state = next_state
-        # Update the agent's reward for this episode
-        self.total_reward += reward
-        # Return the transition
-        return transition
-
-    def return_final_distance(self, state, metric="m"):
-        if metric =="m":
-            return abs(state[0] - self.environment.goal_state[0]) + abs(state[1] - self.environment.goal_state[1])
-        elif metric == "e":
-            return np.linalg.norm(state - self.environment.goal_state)
-
-    def return_x_distance(self, state):
-        return abs(state[0] - self.environment.goal_state[0])
-
-    def return_y_distance(self, state):
-        return abs(state[1] - self.environment.goal_state[1])
 
     # Function for the agent to compute its reward. In this example, the reward is based on the agent's distance to the goal after the agent takes an action.
     def _compute_reward(self, distance_to_goal):
