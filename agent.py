@@ -146,7 +146,7 @@ class Agent:
 class DQN:
     gamma = 0.9
     # The class initialisation function.
-    def __init__(self, step_length):
+    def __init__(self, step_length=0.01, batch_size=50, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
@@ -155,6 +155,33 @@ class DQN:
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
+
+        # Batch size used in the replay_buffer
+        self.batch_size = batch_size # TODO update if change the batch size in replay buffer
+
+        # Sample size for initial sampling of actions to determine greedy action
+        self.angles_between_actions = angles_between_actions
+        self.sample_size = int(360 / self.angles_between_actions)
+
+        # Initialise arrays used to get greedy action in current state and greedy actions for all
+        self.test_current_state_actions = False
+        self.test_next_state_actions = False
+        self.create_sample_test_steps()
+
+    # Creates an empty array with four columns, last 2 will be actions, split in angles
+    # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
+    def create_sample_test_steps(self):
+        angles = np.array(np.arange(0, 360, self.angles_between_actions))
+        x_steps = np.cos(angles) * self.step_length
+        y_steps = np.sin(angles) * self.step_length
+
+        self.test_current_state_actions = np.empty((self.sample_size, 4))
+        self.test_current_state_actions[:, 2] = x_steps
+        self.test_current_state_actions[:, 3] = y_steps
+        # For each next state in the batch of transitions, we need to test num_of_samples actions to find the greedy action
+        self.test_next_state_actions = np.empty((self.batch_size * self.sample_size, 4))
+        # Take the generated actions and write them into the empty np array to be used for testing
+        self.test_next_state_actions[:, [2,3]] = np.tile(self.test_current_state_actions[:, [2,3]], reps=(self.batch_size, 1))
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -191,7 +218,7 @@ class DQN:
         # NEED TO SET THE WEIGHT FOR THE CURRENT TRANSITION equal to 1 so that it gets picked for sure and get the TD error for that, maybe append it lsat to the preformed batch? so batch size 119 plus current transition?
 
         # Target action
-        target_actions =
+        # target_actions
 
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This will now use the target_q_network
@@ -206,16 +233,6 @@ class DQN:
         # self.optimiser.step()
         # Return the loss as a scalar
         # return loss.item()
-
-    def return_optimal_action_order(self, input_tensor):
-        network_prediction = self.q_network.forward(input_tensor)
-        # Detach to remove the gradient component of the tensor, Numpy to convert to 2D np array, ravel to convert to 1D
-        predictions_np_array = network_prediction.detach().numpy().ravel()
-        # Normalise the predictions to a [0, 1] range to get the linear colour interpolation points
-        colour_interpolation_factors = (predictions_np_array - min(predictions_np_array)) / (
-                                        max(predictions_np_array) - min(predictions_np_array))
-        return colour_interpolation_factors
-        pass
 
     def return_greedy_action(self, state: np.ndarray, target = False):
         network = self.q_network
@@ -232,8 +249,11 @@ class DQN:
             print("mag")
             # combine to get stateaction tensor, np gives double by default so cast to float
             # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
-            stateaction_tensor = torch.tensor(np.append(np.tile(state, (10, 1)), sampled_actions, axis=1)).float()
-            # print(stateaction_tensor)
+
+            # Insert the current state into the predefined numpy array convert into float tensor
+            self.test_current_state_actions[:, [0, 1]] = np.tile(state, (self.sample_size, 1))
+            stateaction_tensor = torch.tensor(self.test_current_state_actions).float()
+            print(stateaction_tensor)
             qvalues_tensor = network.forward(stateaction_tensor)
             # print(qvalues_tensor)
             # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
@@ -248,6 +268,10 @@ class DQN:
             action_cov = np.cov(best_actions, rowvar=False)
             # print(action_cov)
             # Sampling gives 3D matrix, reshape to 2D
+
+            # TODO NEED TO INSERT INTO PREPARED ARRAY HERE
+            # NEED TO TILE
+
             sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(10, 1)).reshape(-1, 2)
             sampled_actions = sampled_actions / (
                 np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
@@ -267,7 +291,11 @@ class DQN:
             print("STEP SIZE VIOLATED")
         return action_mean
 
+
+
+
     def return_best_action_target(self): #TODO 1
+        # use np array to take the next states from the batch and fill them into the big array
         # create a pre allocated empty array, of size (batch_dim * initialsamplesize) * 4(state,state,action,action)
         # where the actions are preallocated (only once at initialisation), at each degree of half degree at same length = stepsize, circle with radius step size
         # then for each batch, pick the states from the batch and fill them into the preallocated numpy array (OR TENSOR)
@@ -332,3 +360,12 @@ class ReplayBuffer:
         return torch.tensor(state_actions), torch.tensor(rewards).float(), torch.tensor(next_states)
         # MSE needs float values, so cast rewards to floats
         # next state needs to be appended with actions, do torch.cat(TUPLE(a,b)), will return new tensor
+
+
+if __name__ == '__main__':
+    dqn = DQN()
+    dqn.create_sample_test_steps()
+    print(dqn.test_current_state_actions)
+    print(len(dqn.test_current_state_actions))
+    print(len(dqn.test_next_state_actions))
+    print(np.linalg.norm(dqn.test_next_state_actions[:,2:4], axis=1))
