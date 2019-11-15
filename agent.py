@@ -60,10 +60,14 @@ class Agent:
         self.batch_size = 50
         # Replay buffer
         self.replay_buffer = ReplayBuffer(1000000)
+        # Step size for each step
+        self.step_length = 0.01  # TODO here decide whether to normalise and if what size of normalisation
         # DQN
-        self.dqn = DQN()
-        self.target_dqn = DQN()
+        self.dqn = DQN(self.step_length)
+        self.target_dqn = DQN(self.step_length)
         self.dqn.copy_weights_to_target_dqn()
+
+
 
 
     # Function to check whether the agent has reached the end of an episode
@@ -74,16 +78,19 @@ class Agent:
             return False
 
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
-    def get_next_action(self, state):
-
-
+    def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
-        if self.num_steps_taken > 100:
+        if self.num_steps_taken < 100:
             action = np.random.uniform(low=-0.01, high=0.01, size=2).astype(np.float32)
+            action = action / np.linalg.norm(action) * self.step_length
         else:
+            # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
             action = self.get_greedy_action(state)
-            # print(action)
-        # START TRAINING AFTER X STEPS
+
+            # calculate epsilon
+            # give the last transition a weight of 1 into the replay buffer, and then use that to index the transition
+            # in the loss calculation, i.e get the loss for this step (take an intermediate step in calc loss before plugging into mse loss
+            # save that error
 
 
         # print("greedy")
@@ -113,47 +120,19 @@ class Agent:
         transition = (list(self.state) + self.action, reward, list(next_state))
         self.replay_buffer.add(transition)
 
+
+
         # NEED TO CALL TRAINING FROM HERE
         if self.num_steps_taken > 100:
             self.train_network()
 
+    def normalise_action(self):
+        pass
 
+        # CROSS ENTROPY METHOD
     def get_greedy_action(self, state: np.ndarray):
-        # start off with uniform
-
-
-        # TODO MAKE STEPS SAME SIZE or restrict step size maximum test
-
-        sampled_actions = np.random.uniform(low=-0.01, high=0.01, size=(10,2)).astype(np.float32) # HOW MANY SAMPLES TODO
-        for _ in range(3): # how many resamplings TODO
-            # combine to get stateaction tensor, np gives double by default so cast to float
-            stateaction_tensor = torch.tensor(np.append(np.tile(state, (10, 1)), sampled_actions, axis=1)).float()
-            # print(stateaction_tensor)
-            qvalues_tensor = self.dqn.q_network.forward(stateaction_tensor)
-            # print(qvalues_tensor)
-            # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
-            indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
-            # print(indices_highest_values)
-            best_actions = sampled_actions[indices_highest_values]
-            # print(best_actions)
-            action_mean = np.mean(best_actions, axis=0)
-            # print(action_mean)
-            # HERE CAN EARLY BREAK ON LAST ITERATION once we have the mean
-            # rowvar = False, tells numpy that columns are variables, and rows are samples by default reverse
-            action_cov = np.cov(best_actions, rowvar=False)
-            # print(action_cov)
-            # Sampling gives 3D matrix, reshape to 2D
-            sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(10,1)).reshape(-1, 2)
-            # print("samples")
-            # print(sampled_actions)
-
-        # print("state", state)
-        # print("action", action_mean)
-        # TODO SEE IF REQUIRED
-        if np.linalg.norm(action_mean) > 0.02:
-            action_mean *= 0.02 / np.linalg.norm(action_mean)
-            print("STEP SIZE VIOLATED")
-        return action_mean
+        return self.dqn.return_greedy_action(state)
+        # call dqn greedy
 
     def train_network(self):
         loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50))  # CHANGE BATCH SIZE TODO
@@ -167,12 +146,15 @@ class Agent:
 class DQN:
     gamma = 0.9
     # The class initialisation function.
-    def __init__(self):
+    def __init__(self, step_length):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
+
+        # Step size for each step
+        self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -204,10 +186,17 @@ class DQN:
         # print(tensor_state_actions)
         # Network predictions is a *x1 tensor of a state action values
         network_predictions = self.q_network.forward(tensor_state_actions)
-        # tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions)
+
+        #TODO 2 use all TD ERRORS TO UPDATE WEIGHTS IN THE BATCH AND ALSO SET THE EPSILON FOR THE NEXT STEP
+        # NEED TO SET THE WEIGHT FOR THE CURRENT TRANSITION equal to 1 so that it gets picked for sure and get the TD error for that, maybe append it lsat to the preformed batch? so batch size 119 plus current transition?
+
+        # Target action
+        target_actions =
 
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This will now use the target_q_network
+
+
         # tensor_next_states_values = self.return_next_state_values_tensor(tensor_next_states)
         # tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_next_states_values
         # loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_predicted_q_value_current_state)
@@ -226,13 +215,67 @@ class DQN:
         colour_interpolation_factors = (predictions_np_array - min(predictions_np_array)) / (
                                         max(predictions_np_array) - min(predictions_np_array))
         return colour_interpolation_factors
+        pass
 
-    def return_greedy_action(self, current_state):
-        input_tensor = torch.tensor(current_state).unsqueeze(0)
-        network_prediction = self.q_network.forward(input_tensor)
-        print(network_prediction)
-        # print(int(network_prediction.argmax()))
-        return int(network_prediction.argmax())
+    def return_greedy_action(self, state: np.ndarray, target = False):
+        network = self.q_network
+        if target:
+            network = self.target_q_network
+
+        # start off with uniform
+        sampled_actions = np.random.uniform(low=-0.01, high=0.01, size=(10, 2)).astype(
+            np.float32)  # HOW MANY SAMPLES TODO
+        # Normalise to step length TODO EFFICIENCY
+        sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
+
+        for _ in range(3):  # how many resamplings TODO
+            print("mag")
+            # combine to get stateaction tensor, np gives double by default so cast to float
+            # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
+            stateaction_tensor = torch.tensor(np.append(np.tile(state, (10, 1)), sampled_actions, axis=1)).float()
+            # print(stateaction_tensor)
+            qvalues_tensor = network.forward(stateaction_tensor)
+            # print(qvalues_tensor)
+            # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
+            indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
+            # print(indices_highest_values)
+            best_actions = sampled_actions[indices_highest_values]
+            print(best_actions)
+            action_mean = np.mean(best_actions, axis=0)
+            # print(action_mean)
+            # HERE CAN EARLY BREAK ON LAST ITERATION once we have the mean
+            # rowvar = False, tells numpy that columns are variables, and rows are samples by default reverse
+            action_cov = np.cov(best_actions, rowvar=False)
+            # print(action_cov)
+            # Sampling gives 3D matrix, reshape to 2D
+            sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(10, 1)).reshape(-1, 2)
+            sampled_actions = sampled_actions / (
+                np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
+            # print(np.linalg.norm(sampled_actions[0]))
+            # print(np.linalg.norm(sampled_actions, axis=1))
+            # print(sampled_actions)
+            # print("samples")
+            # print(sampled_actions)
+
+        # print("state", state)
+        # print("action", action_mean)
+        # TODO SEE IF REQUIRED
+        # If the max step size is exceeded scale it back
+        print("greedy action chosen")
+        if np.linalg.norm(action_mean) > 0.02:
+            action_mean *= 0.02 / np.linalg.norm(action_mean)
+            print("STEP SIZE VIOLATED")
+        return action_mean
+
+    def return_best_action_target(self): #TODO 1
+        # create a pre allocated empty array, of size (batch_dim * initialsamplesize) * 4(state,state,action,action)
+        # where the actions are preallocated (only once at initialisation), at each degree of half degree at same length = stepsize, circle with radius step size
+        # then for each batch, pick the states from the batch and fill them into the preallocated numpy array (OR TENSOR)
+        # plug that into forward, for each batch (precompute indices) pick the best actions (arg sort on slices one for each batch)
+        # -----
+        # gaussian (how most efficient)
+        # repeat (here have a precomputed empty array again, with the predefined gaussian sample sizes etc
+        pass
 
     def cross_entropy_greedy_action(self, state_tensor):
         pass
@@ -271,6 +314,8 @@ class ReplayBuffer:
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
+    # TODO 3
+    # TODO PICK SAMPLE BASED ON WEIGHT, DO WEIGHTS NEED TO BE STORED SEPERATELY T OKEEP USING THE DEQUE? seperate weights array use DEQUE so can keep the same length automatically as the buffer
     def generate_batch(self, batch_size = False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
