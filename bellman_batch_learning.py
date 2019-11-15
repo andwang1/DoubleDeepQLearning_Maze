@@ -162,7 +162,8 @@ class DQN:
         return tensor_greedy_actions
 
     def return_next_state_values_tensor(self, tensor_next_states):
-        tensor_network_predictions = self.q_network.forward(tensor_next_states)
+        with torch.no_grad(): # ADD NO GRAD SO THIS DOES NOT ENTER THE CACHE
+            tensor_network_predictions = self.q_network.forward(tensor_next_states)
         predictions_np_array = tensor_network_predictions.detach().numpy()
         greedy_actions = np.argmax(predictions_np_array, axis=1)
         # Reshape from 1D 1x* to 2D *x 1 array so can transform and output a tensor
@@ -222,14 +223,14 @@ if __name__ == "__main__":
     initial_time = False
 
     while True:
-        if episode_counter == 45:
+        if episode_counter == 25:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(200):
+        for step_num in range(20):
             # In this episode we will choose the greedy action instead of the random actions.
             transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.

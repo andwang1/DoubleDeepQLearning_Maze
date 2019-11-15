@@ -78,15 +78,17 @@ class Agent:
 
 
         # RANDOM EXPLORATION IN BEGINNING
-        action = np.random.uniform(low=-0.01, high=0.01, size=2).astype(np.float32)
-
+        if self.num_steps_taken > 100:
+            action = np.random.uniform(low=-0.01, high=0.01, size=2).astype(np.float32)
+        else:
+            action = self.get_greedy_action(state)
+            # print(action)
         # START TRAINING AFTER X STEPS
-        if self.num_steps_taken > 50:
-            self.train_network()
 
-        print("greedy")
-        print(state)
-        print(self.get_greedy_action(state))
+
+        # print("greedy")
+        # print(state)
+        # print(self.get_greedy_action(state))
 
         # CALC EPSILON
         # EPSILON GREEDY
@@ -112,6 +114,8 @@ class Agent:
         self.replay_buffer.add(transition)
 
         # NEED TO CALL TRAINING FROM HERE
+        if self.num_steps_taken > 50:
+            self.train_network()
 
 
     def get_greedy_action(self, state: np.ndarray):
