@@ -147,16 +147,17 @@ class Agent:
             # print("samples")
             # print(sampled_actions)
 
-        print("state", state)
-        print("action", action_mean)
-        if action_mean[0]**2 + action_mean[1]**2
+        # print("state", state)
+        # print("action", action_mean)
+        # TODO SEE IF REQUIRED
+        if np.linalg.norm(action_mean) > 0.02:
+            action_mean *= 0.02 / np.linalg.norm(action_mean)
+            print("STEP SIZE VIOLATED")
         return action_mean
 
     def train_network(self):
-        # NEED TO UPDATE NETWORK TO TAKE ACTIONS TODO
-        self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50)) # CHANGE BATCH SIZE TODO
-        # loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50))  # CHANGE BATCH SIZE TODO
-
+        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50))  # CHANGE BATCH SIZE TODO
+        
         # UPDATE TARGET NETWORK HERE TODO
 
 
@@ -200,7 +201,7 @@ class DQN:
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
         tensor_state_actions, tensor_rewards, tensor_next_states = transitions
-        print(tensor_state_actions)
+        # print(tensor_state_actions)
         # Network predictions is a *x1 tensor of a state action values
         network_predictions = self.q_network.forward(tensor_state_actions)
         # tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions)
