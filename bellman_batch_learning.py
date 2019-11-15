@@ -123,13 +123,18 @@ class DQN:
         self.optimiser.zero_grad()
         tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states = transitions
         # Network predictions is a *x4 tensor of 4 state value predictions per row, one for each action
-        network_predictions = self.q_network.forward(tensor_current_states)
+        network_predictions = self.q_network.forward(tensor_current_states) # ADDMM BACKWARD
         tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions)
 
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         tensor_next_states_values = self.return_next_state_values_tensor(tensor_next_states)
+
         tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_next_states_values
+        # print(tensor_predicted_q_value_current_state)
+        # print(tensor_bellman_current_state_value)
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_predicted_q_value_current_state)
+        # print(loss.grad)
+        # print(loss)
         # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
         loss.backward()
         # Take one gradient step to update the Q-network.
@@ -150,10 +155,11 @@ class DQN:
         input_tensor = torch.tensor(current_state).unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
         predictions_np_array = network_prediction.detach().numpy().ravel()
-        print(predictions_np_array) # DEBUG TODO
+        # print(predictions_np_array) # DEBUG TODO
         return np.argmax(predictions_np_array)
 
     def return_greedy_actions_tensor(self, tensor_states):
+        # Keep the gradient here as we are evaluating at the same state
         tensor_network_predictions = self.q_network.forward(tensor_states)
         predictions_np_array = tensor_network_predictions.detach().numpy()
         greedy_actions = np.argmax(predictions_np_array, axis=1)
@@ -162,8 +168,7 @@ class DQN:
         return tensor_greedy_actions
 
     def return_next_state_values_tensor(self, tensor_next_states):
-        with torch.no_grad(): # ADD NO GRAD SO THIS DOES NOT ENTER THE CACHE
-            tensor_network_predictions = self.q_network.forward(tensor_next_states)
+        tensor_network_predictions = self.q_network.forward(tensor_next_states)
         predictions_np_array = tensor_network_predictions.detach().numpy()
         greedy_actions = np.argmax(predictions_np_array, axis=1)
         # Reshape from 1D 1x* to 2D *x 1 array so can transform and output a tensor
@@ -240,6 +245,7 @@ if __name__ == "__main__":
             if len(replay_buffer) < rb_batch_size:
                 continue
             loss = dqn.train_q_network_batch(replay_buffer.generate_batch(rb_batch_size))
+            print(loss)
             # Measure time between steps (and training) in milliseconds for plotting
             time_steps.append(round((time.time() - initial_time) * 1000))
             # losses.append(np.log(loss)) # log loss

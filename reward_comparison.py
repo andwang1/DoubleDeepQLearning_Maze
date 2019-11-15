@@ -241,7 +241,8 @@ class DQN:
 
     def return_next_state_values_tensor(self, tensor_next_states):
         # Using target network to predict the next state's values
-        tensor_network_predictions = self.target_q_network.forward(tensor_next_states)
+        with torch.no_grad():  # ADD NO GRAD SO THIS DOES NOT ENTER THE CACHE
+            tensor_network_predictions = self.target_q_network.forward(tensor_next_states)
         predictions_np_array = tensor_network_predictions.detach().numpy()
         greedy_actions = np.argmax(predictions_np_array, axis=1)
         # Reshape from 1D 1x* to 2D *x 1 array so can transform and output a tensor

@@ -114,36 +114,42 @@ class Agent:
         self.replay_buffer.add(transition)
 
         # NEED TO CALL TRAINING FROM HERE
-        if self.num_steps_taken > 50:
+        if self.num_steps_taken > 100:
             self.train_network()
 
 
     def get_greedy_action(self, state: np.ndarray):
         # start off with uniform
+
+
+        # TODO MAKE STEPS SAME SIZE or restrict step size maximum test
+
         sampled_actions = np.random.uniform(low=-0.01, high=0.01, size=(10,2)).astype(np.float32) # HOW MANY SAMPLES TODO
         for _ in range(3): # how many resamplings TODO
             # combine to get stateaction tensor, np gives double by default so cast to float
             stateaction_tensor = torch.tensor(np.append(np.tile(state, (10, 1)), sampled_actions, axis=1)).float()
-            print(stateaction_tensor)
+            # print(stateaction_tensor)
             qvalues_tensor = self.dqn.q_network.forward(stateaction_tensor)
-            print(qvalues_tensor)
+            # print(qvalues_tensor)
             # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
             indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
-            print(indices_highest_values)
+            # print(indices_highest_values)
             best_actions = sampled_actions[indices_highest_values]
-            print(best_actions)
+            # print(best_actions)
             action_mean = np.mean(best_actions, axis=0)
-            print(action_mean)
+            # print(action_mean)
             # HERE CAN EARLY BREAK ON LAST ITERATION once we have the mean
             # rowvar = False, tells numpy that columns are variables, and rows are samples by default reverse
             action_cov = np.cov(best_actions, rowvar=False)
-            print(action_cov)
+            # print(action_cov)
             # Sampling gives 3D matrix, reshape to 2D
             sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(10,1)).reshape(-1, 2)
-            print("samples")
-            print(sampled_actions)
+            # print("samples")
+            # print(sampled_actions)
 
-        print(action_mean)
+        print("state", state)
+        print("action", action_mean)
+        if action_mean[0]**2 + action_mean[1]**2
         return action_mean
 
     def train_network(self):
