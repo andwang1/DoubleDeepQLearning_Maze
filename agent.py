@@ -179,13 +179,16 @@ class DQN:
         self.test_current_state_actions = np.empty((self.sample_size, 4))
         self.test_current_state_actions[:, 2] = x_steps
         self.test_current_state_actions[:, 3] = y_steps
+        self.test_current_state_actions = torch.tensor(self.test_current_state_actions).float()
+
         # For each next state in the batch of transitions, we need to test num_of_samples actions to find the greedy action
         self.test_next_state_actions = np.empty((self.batch_size * self.sample_size, 4))
         # Take the generated actions and write them into the empty np array to be used for testing
         self.test_next_state_actions[:, [2,3]] = np.tile(self.test_current_state_actions[:, [2,3]], reps=(self.batch_size, 1))
+        self.test_next_state_actions = torch.tensor(self.test_next_state_actions).float()
 
-        self.test_current_state_actions_gaussian = np.empty((self.gauss_sample_size, 4))
-        self.test_next_state_actions_gaussian = np.empty((self.batch_size * self.gauss_sample_size, 4))
+        self.test_current_state_actions_gaussian = torch.empty((self.gauss_sample_size, 4))
+        self.test_next_state_actions_gaussian = torch.empty((self.batch_size * self.gauss_sample_size, 4))
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -238,70 +241,70 @@ class DQN:
         # Return the loss as a scalar
         # return loss.item()
 
-    def return_greedy_action(self, state: np.ndarray, target=False):
-        network = self.q_network
-        if target:
-            network = self.target_q_network
-        print("mag")
-        # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
-        # combine to get stateaction tensor, np gives double by default so cast to float
-        # Insert the current state into the predefined numpy array convert into float tensor
-        # CROSS ENTROPY
-        self.test_current_state_actions[:, [0, 1]] = np.tile(state, (self.sample_size, 1))
-        stateaction_tensor = torch.tensor(self.test_current_state_actions).float()
-        print(stateaction_tensor)
-        qvalues_tensor = self.q_network.forward(stateaction_tensor)
-        # print(qvalues_tensor)
-        # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
-        indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
-        # print(indices_highest_values)
-        # Get the best actions from that array
-        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
-        print(best_actions)
-        action_mean = np.mean(best_actions, axis=0)
-        # print(action_mean)
-
-        # rowvar = False, tells numpy that columns are variables, and rows are samples, by default other way around
-        action_cov = np.cov(best_actions, rowvar=False)
-
-        # Sampling gives 3D matrix, reshape to 2D
-        sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(self.gauss_sample_size, 1)).reshape(-1, 2)
-        # NEED TO TILE
-
-        # Normalise sampled actions to step length
-        sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
-        self.test_current_state_actions_gaussian[:, [0, 1]] = self.test_current_state_actions[:self.gauss_sample_size, [0, 1]]
-        self.test_current_state_actions_gaussian[:, [2, 3]] = sampled_actions
-
-        # Second iteration
-        stateaction_tensor = torch.tensor(self.test_current_state_actions_gaussian).float()
-        print(stateaction_tensor)
-        qvalues_tensor = self.q_network.forward(stateaction_tensor)
-        # print(qvalues_tensor)
-        # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
-        indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
-        # print(indices_highest_values)
-        # Get the best actions from that array
-        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
-        print(best_actions)
-        action_mean = np.mean(best_actions, axis=0)
-        greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
-
-        # print(np.linalg.norm(sampled_actions[0]))
-        # print(np.linalg.norm(sampled_actions, axis=1))
-        # print(sampled_actions)
-        # print("samples")
-        # print(sampled_actions)
-
-        # print("state", state)
-        # print("action", action_mean)
-        # TODO SEE IF REQUIRED
-        # If the max step size is exceeded scale it back
-        print("greedy action chosen")
-        if np.linalg.norm(greedy_action) > 0.02:
-            # action_mean *= 0.02 / np.linalg.norm(action_mean)
-            print("STEP SIZE VIOLATED")
-        return greedy_action
+    # def return_greedy_action(self, state: np.ndarray, target=False):
+    #     network = self.q_network
+    #     if target:
+    #         network = self.target_q_network
+    #     print("mag")
+    #     # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
+    #     # combine to get stateaction tensor, np gives double by default so cast to float
+    #     # Insert the current state into the predefined numpy array convert into float tensor
+    #     # CROSS ENTROPY
+    #     self.test_current_state_actions[:, [0, 1]] = np.tile(state, (self.sample_size, 1))
+    #     stateaction_tensor = torch.tensor(self.test_current_state_actions).float()
+    #     print(stateaction_tensor)
+    #     qvalues_tensor = self.q_network.forward(stateaction_tensor)
+    #     # print(qvalues_tensor)
+    #     # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
+    #     indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
+    #     # print(indices_highest_values)
+    #     # Get the best actions from that array
+    #     best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
+    #     print(best_actions)
+    #     action_mean = np.mean(best_actions, axis=0)
+    #     # print(action_mean)
+    #
+    #     # rowvar = False, tells numpy that columns are variables, and rows are samples, by default other way around
+    #     action_cov = np.cov(best_actions, rowvar=False)
+    #
+    #     # Sampling gives 3D matrix, reshape to 2D
+    #     sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(self.gauss_sample_size, 1)).reshape(-1, 2)
+    #     # NEED TO TILE
+    #
+    #     # Normalise sampled actions to step length
+    #     sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
+    #     self.test_current_state_actions_gaussian[:, [0, 1]] = self.test_current_state_actions[:self.gauss_sample_size, [0, 1]]
+    #     self.test_current_state_actions_gaussian[:, [2, 3]] = sampled_actions
+    #
+    #     # Second iteration
+    #     stateaction_tensor = torch.tensor(self.test_current_state_actions_gaussian).float()
+    #     print(stateaction_tensor)
+    #     qvalues_tensor = self.q_network.forward(stateaction_tensor)
+    #     # print(qvalues_tensor)
+    #     # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
+    #     indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
+    #     # print(indices_highest_values)
+    #     # Get the best actions from that array
+    #     best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
+    #     print(best_actions)
+    #     action_mean = np.mean(best_actions, axis=0)
+    #     greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
+    #
+    #     # print(np.linalg.norm(sampled_actions[0]))
+    #     # print(np.linalg.norm(sampled_actions, axis=1))
+    #     # print(sampled_actions)
+    #     # print("samples")
+    #     # print(sampled_actions)
+    #
+    #     # print("state", state)
+    #     # print("action", action_mean)
+    #     # TODO SEE IF REQUIRED
+    #     # If the max step size is exceeded scale it back
+    #     print("greedy action chosen")
+    #     if np.linalg.norm(greedy_action) > 0.02:
+    #         # action_mean *= 0.02 / np.linalg.norm(action_mean)
+    #         print("STEP SIZE VIOLATED")
+    #     return greedy_action
 
     def return_greedy_action(self, state: np.ndarray):
 
@@ -310,17 +313,17 @@ class DQN:
         # combine to get stateaction tensor, np gives double by default so cast to float
         # Insert the current state into the predefined numpy array convert into float tensor
         # CROSS ENTROPY
-        self.test_current_state_actions[:, [0, 1]] = np.tile(state, (self.sample_size, 1))
-        stateaction_tensor = torch.tensor(self.test_current_state_actions).float()
-        print(stateaction_tensor)
+        self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
+        stateaction_tensor = torch.tensor(self.test_current_state_actions)
+        # print(stateaction_tensor)
         qvalues_tensor = self.q_network.forward(stateaction_tensor)
         # print(qvalues_tensor)
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
-        # print(indices_highest_values)
-        # Get the best actions from that array
-        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
-        print(best_actions)
+        print(indices_highest_values)
+        # Get the best actions from that array, convert to numpy to use np mean function
+        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values].numpy()
+        print("best", best_actions)
         action_mean = np.mean(best_actions, axis=0)
         # print(action_mean)
 
@@ -334,18 +337,18 @@ class DQN:
         # Normalise sampled actions to step length
         sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
         self.test_current_state_actions_gaussian[:, [0, 1]] = self.test_current_state_actions[:self.gauss_sample_size, [0, 1]]
-        self.test_current_state_actions_gaussian[:, [2, 3]] = sampled_actions
+        self.test_current_state_actions_gaussian[:, [2, 3]] = torch.tensor(sampled_actions).float()
 
         # Second iteration
-        stateaction_tensor = torch.tensor(self.test_current_state_actions_gaussian).float()
-        print(stateaction_tensor)
+        stateaction_tensor = torch.tensor(self.test_current_state_actions_gaussian)
+        # print(stateaction_tensor)
         qvalues_tensor = self.q_network.forward(stateaction_tensor)
         # print(qvalues_tensor)
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
         # print(indices_highest_values)
         # Get the best actions from that array
-        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values]
+        best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values].numpy()
         print(best_actions)
         action_mean = np.mean(best_actions, axis=0)
         greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
