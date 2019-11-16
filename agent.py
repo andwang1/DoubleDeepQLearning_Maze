@@ -158,7 +158,7 @@ class DQN:
 
         # Batch size used in the replay_buffer
         self.batch_size = batch_size # TODO update if change the batch size in replay buffer
-        self.replay_buffer_size = replay_buffer_size
+        self.replay_buffer_size = replay_buffer_size # TODO FEED IN REPLAY BUFFER DIRECTLY
 
         # Sample size for initial sampling of actions to determine greedy action
         self.angles_between_actions = angles_between_actions
@@ -173,6 +173,9 @@ class DQN:
         self.test_current_state_actions_gaussian = False
         self.test_next_state_actions_gaussian = False
         self.create_sample_test_steps()
+
+        # Access to the same replay buffer
+        self.replay_buffer = None
 
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
@@ -241,9 +244,20 @@ class DQN:
         tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_target_next_state_action_value
         # print("bellman", tensor_bellman_current_state_value)
         # The error between this bellman value and the current network's value for the same state action pairs in the batch
-        td_error = tensor_bellman_current_state_value - tensor_current_state_action_value
+        td_error = (tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()
 
         # HERE USE INDICES AND TD_ERROR TO GENERATE WEIGHTS
+        # The numpy array will wrap around, while the deque is just moving, so to match up the deque indices that
+        # we receive in buffer_indices and the corresponding indices in the np array of transition weights
+        # we need to do some calculations
+        # This will be 0 when the deque is still growing
+        transition_weights_offset = step_number - self.replay_buffer.length
+        transition_weights_indices = (buffer_indices + transition_weights_offset) % self.replay_buffer.buffer_max_len
+
+        self.replay_buffer.transition_weights[transition_weights_indices] = np.abs(td_error).ravel()
+
+        # TODO MOST RECENT ADDITION ALWAYS APPENDED AT THE END, append weight as 0, and add it manually to the transitions in batching
+        # HERE THEN GET THE last normalised weight from the weight matrices, that will be the epsilon for next step
 
 
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_current_state_action_value)
@@ -408,6 +422,8 @@ class ReplayBuffer:
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
             batch_size = self.batch_size
+
+
 
         # Normalise weights
         self.transition_weights[:self.length] = self.transition_weights[:self.length] / np.sum(self.transition_weights[:self.length])
