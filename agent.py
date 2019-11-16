@@ -59,13 +59,16 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 50
         # Replay buffer
-        self.replay_buffer = ReplayBuffer(1000000)
+        self.buffer_size = 1000000
+        self.replay_buffer = ReplayBuffer(self.buffer_size)
         # Step size for each step
         self.step_length = 0.01  # TODO size of normalisation
         # DQN
-        self.dqn = DQN(self.step_length)
-        self.target_dqn = DQN(self.step_length)
+        self.dqn = DQN(self.step_length, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
+
+        # Share access to the same replay_buffer
+        self.dqn.replay_buffer = self.replay_buffer
 
 
     # Function to check whether the agent has reached the end of an episode
@@ -143,7 +146,7 @@ class Agent:
 class DQN:
     gamma = 0.9
     # The class initialisation function.
-    def __init__(self, step_length=0.01, batch_size=50, angles_between_actions=2):
+    def __init__(self, step_length=0.01, batch_size=50, replay_buffer_size=0, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
@@ -155,6 +158,7 @@ class DQN:
 
         # Batch size used in the replay_buffer
         self.batch_size = batch_size # TODO update if change the batch size in replay buffer
+        self.replay_buffer_size = replay_buffer_size
 
         # Sample size for initial sampling of actions to determine greedy action
         self.angles_between_actions = angles_between_actions
@@ -224,7 +228,7 @@ class DQN:
 
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
-        tensor_state_actions, tensor_rewards, tensor_next_states = transitions
+        tensor_state_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
         # print(tensor_state_actions)
         # Network predictions is a *x1 tensor of the current state action values in the batch
         tensor_current_state_action_value = self.q_network.forward(tensor_state_actions)
@@ -239,12 +243,15 @@ class DQN:
         # The error between this bellman value and the current network's value for the same state action pairs in the batch
         td_error = tensor_bellman_current_state_value - tensor_current_state_action_value
 
+        # HERE USE INDICES AND TD_ERROR TO GENERATE WEIGHTS
+
+
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_current_state_action_value)
         self.optimiser.step()
         return loss.item()
 
 
-        #TODO 2 use all TD ERRORS TO UPDATE WEIGHTS IN THE BATCH AND ALSO SET THE EPSILON FOR THE NEXT STEP
+        # TODO 2 use all TD ERRORS TO UPDATE WEIGHTS IN THE BATCH AND ALSO SET THE EPSILON FOR THE NEXT STEP
         # NEED TO SET THE WEIGHT FOR THE CURRENT TRANSITION equal to 1 so that it gets picked for sure and get the TD error for that, maybe append it lsat to the preformed batch? so batch size 119 plus current transition?
         # return indices of weight array from batch picking
         # Target action
@@ -314,8 +321,8 @@ class DQN:
         return greedy_action
 
 
-    def return_next_state_q_greedy_target(self, transitions: np.ndarray): #TODO 1
-        next_states = torch.tensor(transitions[2])
+    def return_next_state_q_greedy_target(self, transitions: torch.tensor): #TODO 1
+        next_states = transitions[2]
         # print(next_states)
         # print(self.test_next_state_actions[:, [0, 1]].shape)
 
@@ -374,35 +381,47 @@ class DQN:
 
 class ReplayBuffer:
     def __init__(self, batch_size=50, max_capacity=1000000):
-        self.replay_buffer = collections.deque(maxlen=max_capacity)
+        self.buffer_max_len = max_capacity
+        self.replay_buffer = collections.deque(maxlen=self.buffer_max_len)
         self.batch_size = batch_size
+        self.length = 0
+        # Initialise an array for the weights for each transition in the buffer, will make this a numpy array where
+        # the indices will wrap around at the max_length to avoid performance degradation of resizing arrays
+        self.transition_weights = np.ones(max_capacity)
 
     def __len__(self):
         return len(self.replay_buffer)
 
     def add(self, transition_tuple):
         self.replay_buffer.append(transition_tuple)
+        # Adds 1 only if the buffer is not full
+        self.length += 1 if self.length < self.buffer_max_len else 0
 
     def clear(self):
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
     # TODO 3
+    # TODO replace (len(self.replay_buffer) with manual addition
     # TODO PICK SAMPLE BASED ON WEIGHT, DO WEIGHTS NEED TO BE STORED SEPERATELY T OKEEP USING THE DEQUE? seperate weights array use DEQUE so can keep the same length automatically as the buffer
     def generate_batch(self, batch_size = False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
             batch_size = self.batch_size
+
+        # Normalise weights
+        self.transition_weights[:self.length] = self.transition_weights[:self.length] / np.sum(self.transition_weights[:self.length])
         state_actions = []
         rewards = []
         next_states = []
-        indices = np.random.choice(range(len(self.replay_buffer)), batch_size, replace=False) # ADD WEIGHTING TO BUFFER TODO
+        # We generate random indices according to their TD error weights
+        indices = np.random.choice(range(self.length), batch_size, replace=False, p=self.transition_weights[:self.length]) # ADD WEIGHTING TO BUFFER TODO
         for index in indices:
             transition = self.replay_buffer[index]
             state_actions.append(transition[0])  # 1x4 LIST
             rewards.append([transition[1]])  # 1x1
             next_states.append(transition[2])  # 1x2
-        return torch.tensor(state_actions), torch.tensor(rewards).float(), torch.tensor(next_states)
+        return torch.tensor(state_actions), torch.tensor(rewards).float(), torch.tensor(next_states), indices
         # MSE needs float values, so cast rewards to floats
         # next state needs to be appended with actions, do torch.cat(TUPLE(a,b)), will return new tensor
 
