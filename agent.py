@@ -132,7 +132,7 @@ class Agent:
         # call dqn greedy
 
     def train_network(self):
-        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50))  # CHANGE BATCH SIZE TODO
+        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50), self.num_steps_taken)  # CHANGE BATCH SIZE TODO
         
         # UPDATE TARGET NETWORK HERE TODO
 
@@ -217,7 +217,12 @@ class DQN:
         return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
-    def train_q_network_batch(self, transitions: tuple):
+    def train_q_network_batch(self, transitions: tuple, step_number):
+
+        # Update target network
+        if step_number % 50 == 0:
+            self.copy_weights_to_target_dqn()
+
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
         tensor_state_actions, tensor_rewards, tensor_next_states = transitions
@@ -225,27 +230,28 @@ class DQN:
         # Network predictions is a *x1 tensor of a state action values
         network_predictions = self.q_network.forward(tensor_state_actions)
 
-        self.return_greedy_action_target(transitions)
+        with torch.no_grad():
+            target_q_predictions = self.target_q_network.forward(self.return_next_state_q_greedy_target(transitions))
+
+        tensor_bellman_current_state_value = tensor_rewards + self.gamma * target_q_predictions
+
+        loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, network_predictions)
+        td_error = tensor_bellman_current_state_value - network_predictions
+
+        print("bellman", tensor_bellman_current_state_value)
+        self.optimiser.step()
+        # Return the loss as a scalar
+        return loss.item()
+
 
         #TODO 2 use all TD ERRORS TO UPDATE WEIGHTS IN THE BATCH AND ALSO SET THE EPSILON FOR THE NEXT STEP
         # NEED TO SET THE WEIGHT FOR THE CURRENT TRANSITION equal to 1 so that it gets picked for sure and get the TD error for that, maybe append it lsat to the preformed batch? so batch size 119 plus current transition?
-
+        # return indices of weight array from batch picking
         # Target action
         # target_actions
 
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This will now use the target_q_network
-
-
-        # tensor_next_states_values = self.return_next_state_values_tensor(tensor_next_states)
-        # tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_next_states_values
-        # loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_predicted_q_value_current_state)
-        # # Compute the gradients based on this loss, i.e. the gradients of the loss with respect to the Q-network parameters.
-        # loss.backward()
-        # # Take one gradient step to update the Q-network.
-        # self.optimiser.step()
-        # Return the loss as a scalar
-        # return loss.item()
 
 
     def return_greedy_action(self, state: np.ndarray):
@@ -308,10 +314,9 @@ class DQN:
         return greedy_action
 
 
-    def return_greedy_action_target(self, transitions: np.ndarray): #TODO 1
-        next_states = torch.tensor(transitions[2])
+    def return_next_state_q_greedy_target(self, transitions: np.ndarray): #TODO 1
+        next_states = transitions[2]
         # print(next_states)
-        # print(np.tile(next_states, (self.sample_size, 1)).shape)
         # print(self.test_next_state_actions[:, [0, 1]].shape)
         self.test_next_state_actions[:, [0, 1]] = torch.tensor(np.tile(next_states, (self.sample_size, 1)))
         with torch.no_grad():
@@ -400,7 +405,7 @@ class ReplayBuffer:
             state_actions.append(transition[0])  # 1x4 LIST
             rewards.append([transition[1]])  # 1x1
             next_states.append(transition[2])  # 1x2
-        return torch.tensor(state_actions), torch.tensor(rewards).float(), np.array(next_states)
+        return torch.tensor(state_actions), torch.tensor(rewards).float(), torch.tensor(next_states)
         # MSE needs float values, so cast rewards to floats
         # next state needs to be appended with actions, do torch.cat(TUPLE(a,b)), will return new tensor
 
