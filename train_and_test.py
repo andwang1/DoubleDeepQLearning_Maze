@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     # Determine the time at which training will stop, i.e. in 10 minutes (600 seconds) time
     start_time = time.time()
-    end_time = start_time + 240
+    end_time = start_time + 120
 
     # Train the agent, until the time is up
     while time.time() < end_time:
@@ -57,6 +57,8 @@ if __name__ == "__main__":
             has_reached_goal
             break
         state = next_state
+        if display_on:
+            environment.show(state)
 
     # Print out the result
     if has_reached_goal:

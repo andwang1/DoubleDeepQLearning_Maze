@@ -49,7 +49,7 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 200 # 100 is the episode they will run at TODO
+        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -57,18 +57,20 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Batch size for replay buffer
-        self.batch_size = 50
+        self.batch_size = 60
         # Replay buffer
         self.buffer_size = 1000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
-        self.step_length = 0.01  # TODO size of normalisation
+        self.step_length = 0.015  # TODO size of normalisation
         # DQN
-        self.dqn = DQN(self.step_length, replay_buffer_size=self.buffer_size)
+        self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
         self.dqn.episode_length = self.episode_length
         # Share access to the same replay_buffer
         self.dqn.replay_buffer = self.replay_buffer
+
+        self.random_exploration_epsilon = 1
 
 
 
@@ -83,9 +85,15 @@ class Agent:
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
-        if self.num_steps_taken < self.episode_length * 2:
-            action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
-            action = np.array(action)
+        if self.num_steps_taken < self.episode_length * 4:
+            if self.num_steps_taken > self.episode_length * 2.5:
+                self.random_exploration_epsilon -= 1 / self.episode_length
+                print(self.random_exploration_epsilon)
+                action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state), self.random_exploration_epsilon)
+            else:
+                action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+                action = np.array(action)
+
         else:
             # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
@@ -126,7 +134,7 @@ class Agent:
 
 
         # NEED TO CALL TRAINING FROM HERE
-        if self.num_steps_taken > self.episode_length: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
+        if self.num_steps_taken > self.episode_length * 2: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
             self.train_network()
 
 
@@ -149,7 +157,7 @@ class Agent:
 class DQN:
     gamma = 0.9
     # The class initialisation function.
-    def __init__(self, step_length=0.01, batch_size=50, replay_buffer_size=0, angles_between_actions=2):
+    def __init__(self, step_length=0.02, batch_size=50, replay_buffer_size=0, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
@@ -168,7 +176,7 @@ class DQN:
         # First (uniform) sample size
         self.initial_sample_size = int(360 / self.angles_between_actions)
         # Gaussian sample size
-        self.gauss_sample_size = 20
+        self.gauss_sample_size = 40
 
         # Initialise arrays used to get greedy action in current state and greedy actions for all
         self.test_current_state_actions = False
@@ -341,10 +349,12 @@ class DQN:
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This will now use the target_q_network
 
-    def epsilon_greedy_policy(self, greedy_action):
+    def epsilon_greedy_policy(self, greedy_action, epsilon=False):
+        if not epsilon:
+            epsilon = self.epsilon
         # RANDOM
         print("eps", self.epsilon)
-        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+        if np.random.randint(0, 100) in range(int(epsilon * 100)):
             action = self.test_current_state_actions[:, [2, 3]][np.random.randint(self.initial_sample_size)]
             return np.array(action)
         # GREEDY
