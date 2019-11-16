@@ -59,8 +59,8 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 50
         # Replay buffer
-        self.buffer_size = 1000000
-        self.replay_buffer = ReplayBuffer(self.buffer_size)
+        self.buffer_size = 100
+        self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.01  # TODO size of normalisation
         # DQN
@@ -251,8 +251,13 @@ class DQN:
         # we receive in buffer_indices and the corresponding indices in the np array of transition weights
         # we need to do some calculations
         # This will be 0 when the deque is still growing
-        transition_weights_offset = step_number - self.replay_buffer.length
+        transition_weights_offset = (step_number - self.replay_buffer.length) % self.replay_buffer.buffer_max_len
         transition_weights_indices = (buffer_indices + transition_weights_offset) % self.replay_buffer.buffer_max_len
+        print(transition_weights_offset)
+        print(buffer_indices)
+        print(transition_weights_indices)
+        print("length", self.replay_buffer.length)
+        print("done")
 
         self.replay_buffer.transition_weights[transition_weights_indices] = np.abs(td_error).ravel()
 
@@ -394,7 +399,7 @@ class DQN:
 
 
 class ReplayBuffer:
-    def __init__(self, batch_size=50, max_capacity=1000000):
+    def __init__(self, max_capacity, batch_size=50, ):
         self.buffer_max_len = max_capacity
         self.replay_buffer = collections.deque(maxlen=self.buffer_max_len)
         self.batch_size = batch_size
