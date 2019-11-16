@@ -49,7 +49,7 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 100 # 100 is the episode they will run at TODO
+        self.episode_length = 200 # 100 is the episode they will run at TODO
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -66,7 +66,7 @@ class Agent:
         # DQN
         self.dqn = DQN(self.step_length, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
-
+        self.dqn.episode_length = self.episode_length
         # Share access to the same replay_buffer
         self.dqn.replay_buffer = self.replay_buffer
 
@@ -83,9 +83,9 @@ class Agent:
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
-        if self.num_steps_taken < 100:
-            action = np.random.uniform(low=-0.01, high=0.01, size=2).astype(np.float32)
-            action = action / np.linalg.norm(action) * self.step_length
+        if self.num_steps_taken < self.episode_length * 2:
+            action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+            action = np.array(action)
         else:
             # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
@@ -111,7 +111,7 @@ class Agent:
         # If stuck give negative reward
         if np.linalg.norm(self.state - next_state) < 0.002:
             # print("NOMOVE")
-            reward = -.25
+            reward = -.45 * distance_to_goal
         else:
             reward = 1 - distance_to_goal
 
@@ -126,7 +126,7 @@ class Agent:
 
 
         # NEED TO CALL TRAINING FROM HERE
-        if self.num_steps_taken > 50: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
+        if self.num_steps_taken > self.episode_length: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
             self.train_network()
 
 
@@ -138,7 +138,7 @@ class Agent:
 
 
     def train_network(self):
-        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50), self.num_steps_taken)  # CHANGE BATCH SIZE TODO
+        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken)  # CHANGE BATCH SIZE TODO
         
         # UPDATE TARGET NETWORK HERE TODO
 
@@ -183,8 +183,8 @@ class DQN:
         # Epsilon
         self.epsilon = 1
 
-        # First batch mean TD error
-        self.first_batch_td = None
+        # Episode length
+        self.episode_length = None
 
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
@@ -209,6 +209,11 @@ class DQN:
 
         # From the target network greedy action calculation we will return a tensor with the states selected by the batch and their corresponding greedy actions
         self.target_greedy_state_action_pairs = torch.empty((self.batch_size, 4))
+
+        self.avg_td_error_at_start = None
+        self.avg_td_error_at_end = None
+        self.avg_td_error_median = None
+        self.avg_td_error_median = None
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -235,7 +240,7 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
         # Update target network TODO HERE OR SOMEWHERE ELSE
-        if step_number % 20 == 0:
+        if step_number % 40 == 0:
             self.copy_weights_to_target_dqn()
 
         # Set all the gradients stored in the optimiser to zero.
@@ -262,13 +267,43 @@ class DQN:
         # The absolute error between this bellman value and the current network's value for the same state action pairs in the batch
         td_error = np.abs((tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()).ravel()
 
+        # Update the TD errors of the transitions we used
         for index, error in zip(buffer_indices, td_error):
             self.replay_buffer.transition_td_errors[index] = error
 
-        # HERE THEN GET THE last normalised weight from the weight matrices, that will be the epsilon for next step
+        # # Epsilon linear
+        # self.epsilon -= 0.001
+
+        # Avg uncertainty at start of this episode
+        if step_number % self.episode_length == 10:
+            self.avg_td_error_at_start = np.mean(td_error[-10:])
+
+        # Avg uncertainty at end of the episode
+        if step_number % self.episode_length == self.episode_length - 10:
+            self.avg_td_error_at_end = np.mean(td_error[-10:])
+
+        # Avg uncertainty over last episode
+        if step_number % self.episode_length == 1:
+            self.avg_td_error_mean = np.mean(td_error[-self.episode_length:])
+
+        # Median uncertainty over last episode
+        if step_number % self.episode_length == 1:
+            self.avg_td_error_median = np.median(td_error[-self.episode_length:])
+
+        # Set epsilon at start of episode
+        if step_number % self.episode_length == 1:
+            self.epsilon = 0.2
+
+        # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
+        if self.avg_td_error_mean:
+            self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
+            if self.epsilon < 0.05:
+                self.epsilon = 0.05
+            elif self.epsilon > 0.9:
+                self.epsilon = 0.9
+
+
         # error will be the last error calculated which is the last one in the buffer
-        # HERE DO MEAN OF THE LAST COUPLE OF TD ERRORS FROM THE BACK OF THE DEQUE (THIS WILL BE MOST RECENT ONES)
-        # TAKE THE MEAN AND GET THE WEIGHT (=PROB) TO SEE IF THE ERROR IS LARGE
 
         # LAST ERROR DIVIDED BY MEAN? LAST ERROR WILL ALWAYS BE SMALLER BCS OF TARGET NETWORK, DO QNETWORK HERE INSTEAD?
         # COMPARE TO BEGINNING OF EPISODE?
@@ -286,7 +321,7 @@ class DQN:
         # else:
         #     self.epsilon = min(1, error / self.first_batch_td)
 
-        self.epsilon -= 0.001
+
 
         # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
         # print(self.last_transition_td_error)
@@ -427,7 +462,7 @@ class DQN:
 
         self.target_greedy_state_action_pairs[:, [0, 1]] = next_states
         self.target_greedy_state_action_pairs[:, [2, 3]] = torch.tensor(greedy_actions)
-        print("return target q")
+        # print("return target q")
         return self.target_greedy_state_action_pairs
 
         # gaussian (how most efficient) TODO EFFICIENCY
