@@ -38,8 +38,8 @@ class Network(torch.nn.Module):
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
-        layer_1_output = torch.nn.functional.relu(self.layer_1(input))
-        layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
+        layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
+        layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
         output = self.output_layer(layer_2_output)
         return output
 
