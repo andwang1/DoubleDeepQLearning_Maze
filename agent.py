@@ -32,24 +32,26 @@ class Network(torch.nn.Module):
         # Call the initialisation function of the parent class.
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
-        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=100)
-        self.layer_2 = torch.nn.Linear(in_features=100, out_features=100)
-        self.output_layer = torch.nn.Linear(in_features=100, out_features=output_dimension)
+        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        self.layer_2 = torch.nn.Linear(in_features=200, out_features=150)
+        self.output_layer = torch.nn.Linear(in_features=150, out_features=output_dimension)
+        torch.nn.init.xavier_uniform_(self.layer_1.weight)
+        torch.nn.init.xavier_uniform_(self.layer_2.weight)
+        torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
-        layer_1_output = torch.nn.functional.relu(self.layer_1(input))
+        layer_1_output = torch.nn.functional.celu(self.layer_1(input))
         layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
         output = self.output_layer(layer_2_output)
         return output
-
 
 class Agent:
 
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 150 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -59,7 +61,7 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 60
         # Replay buffer
-        self.buffer_size = 3000
+        self.buffer_size = 2000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -143,7 +145,7 @@ class Agent:
 class DQN:
     gamma = 0.9
     # The class initialisation function.
-    def __init__(self, step_length=0.02, batch_size=50, replay_buffer_size=0, angles_between_actions=2):
+    def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
@@ -234,8 +236,12 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
         # Update target network TODO HERE OR SOMEWHERE ELSE
-        if step_number % 20 == 0:
+        if step_number % 60 == 0:
             self.copy_weights_to_target_dqn()
+
+        # DEBUG
+        if step_number % 1000 == 0:
+            print("step", step_number, self.replay_buffer.length)
 
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
