@@ -49,7 +49,7 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 150 # 100 is the episode they will run at TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -59,7 +59,7 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 60
         # Replay buffer
-        self.buffer_size = 1000
+        self.buffer_size = 3000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -72,9 +72,6 @@ class Agent:
 
         self.random_exploration_epsilon = 1
 
-
-
-
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
@@ -85,14 +82,16 @@ class Agent:
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
-        if self.num_steps_taken < self.episode_length * 4:
-            if self.num_steps_taken > self.episode_length * 2.5:
-                self.random_exploration_epsilon -= 1 / self.episode_length
-                print(self.random_exploration_epsilon)
-                action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state), self.random_exploration_epsilon)
-            else:
-                action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
-                action = np.array(action)
+        if self.num_steps_taken < self.episode_length * 5:
+            action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+            action = np.array(action)
+            # if self.num_steps_taken > self.episode_length * 2.5:
+            #     self.random_exploration_epsilon -= 1 / self.episode_length
+            #     print(self.random_exploration_epsilon)
+            #     action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state), self.random_exploration_epsilon)
+            # else:
+            #     action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+            #     action = np.array(action)
 
         else:
             # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
@@ -119,11 +118,10 @@ class Agent:
         # If stuck give negative reward
         if np.linalg.norm(self.state - next_state) < 0.002:
             # print("NOMOVE")
-            reward = -.45 * distance_to_goal
+            reward = -.75 * distance_to_goal
         else:
-            reward = 1 - distance_to_goal
+            reward = 0.5 - distance_to_goal
 
-        # BUNDLE STATEACTION INTO ONE ARRAY, NP APPEND IS SLOW, use list
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
         self.replay_buffer.add(transition)
@@ -131,26 +129,14 @@ class Agent:
         # Cannot make this 0 for some reason will give error ValueError: probabilities contain NaN
         self.replay_buffer.transition_td_errors.append(0.0001)
 
-
-
-        # NEED TO CALL TRAINING FROM HERE
-        if self.num_steps_taken > self.episode_length * 2: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
-            self.train_network()
-
+        # Train
+        if self.num_steps_taken > self.episode_length * 4.5:
+            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken)
 
         # CROSS ENTROPY METHOD
     def get_greedy_action(self, state: np.ndarray):
         return self.dqn.return_greedy_action(state)
         # call dqn greedy
-
-
-
-    def train_network(self):
-        loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken)  # CHANGE BATCH SIZE TODO
-        
-        # UPDATE TARGET NETWORK HERE TODO
-
-
 
 
 # The DQN class determines how to train the above neural network.
@@ -220,7 +206,7 @@ class DQN:
 
         self.avg_td_error_at_start = None
         self.avg_td_error_at_end = None
-        self.avg_td_error_median = None
+        self.avg_td_error_mean = None
         self.avg_td_error_median = None
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
@@ -248,7 +234,7 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
         # Update target network TODO HERE OR SOMEWHERE ELSE
-        if step_number % 40 == 0:
+        if step_number % 20 == 0:
             self.copy_weights_to_target_dqn()
 
         # Set all the gradients stored in the optimiser to zero.
@@ -301,7 +287,7 @@ class DQN:
         # Set epsilon at start of episode
         if step_number % self.episode_length == 1:
             self.epsilon = 0.2
-
+        # TODO CHANGE EPSILON CHANGE MAKE BIGGER< MAKE GAUSSIAN BIGGER
         # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
         if self.avg_td_error_mean:
             self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
@@ -336,7 +322,7 @@ class DQN:
 
         # prints the value of the current state we are in, onlline
         # print(buffer_indices[-1])
-        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
+        # print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
         return loss.item()
 
 
