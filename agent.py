@@ -24,7 +24,7 @@ import torch
 import collections
 from path_visualisation import PathVisualisation
 
-
+import time #TODO
 # The Network class inherits the torch.nn.Module class, which represents a neural network.
 class Network(torch.nn.Module):
     # The class initialisation function. This takes as arguments the dimension of the network's input (i.e. the dimension of the state), and the dimension of the network's output (i.e. the dimension of the action).
@@ -59,7 +59,7 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 50
         # Replay buffer
-        self.buffer_size = 100
+        self.buffer_size = 1000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.01  # TODO size of normalisation
@@ -69,6 +69,8 @@ class Agent:
 
         # Share access to the same replay_buffer
         self.dqn.replay_buffer = self.replay_buffer
+
+
 
 
     # Function to check whether the agent has reached the end of an episode
@@ -86,22 +88,13 @@ class Agent:
             action = action / np.linalg.norm(action) * self.step_length
         else:
             # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
-            action = self.get_greedy_action(state)
+            action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
 
-
-            # calculate epsilon
-            # give the last transition a weight of 1 into the replay buffer, and then use that to index the transition
-            # in the loss calculation, i.e get the loss for this step (take an intermediate step in calc loss before plugging into mse loss
-            # save that error
-
-
-        # print("greedy")
-        # print(state)
-        # print(self.get_greedy_action(state))
-
-        # CALC EPSILON
-        # EPSILON GREEDY
-
+            # DEBUG SEE WHAT HAPPENS AT START AND END OF EPISODES
+            # if self.num_steps_taken % self.episode_length <10:
+            #     time.sleep(0.5)
+            # if self.num_steps_taken % self.episode_length >90:
+            #     time.sleep(0.5)
 
 
         # Update the number of steps which the agent has taken
@@ -115,17 +108,25 @@ class Agent:
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         # HERE CHANGE THE REWARD TODO
-        reward = 1 - distance_to_goal
+        # If stuck give negative reward
+        if np.linalg.norm(self.state - next_state) < 0.002:
+            # print("NOMOVE")
+            reward = -.25
+        else:
+            reward = 1 - distance_to_goal
 
         # BUNDLE STATEACTION INTO ONE ARRAY, NP APPEND IS SLOW, use list
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
         self.replay_buffer.add(transition)
+        # Add new weight of 0 for the newest transition, we will make sure this gets picked manually by adding to batch
+        # Cannot make this 0 for some reason will give error ValueError: probabilities contain NaN
+        self.replay_buffer.transition_td_errors.append(0.0001)
 
 
 
         # NEED TO CALL TRAINING FROM HERE
-        if self.num_steps_taken > 100:
+        if self.num_steps_taken > 50: # TODO HERE WHEN CHANGE THIS NEED TO CHANGE THE WEIGHT INITALISATION OF BUFFER
             self.train_network()
 
 
@@ -133,6 +134,8 @@ class Agent:
     def get_greedy_action(self, state: np.ndarray):
         return self.dqn.return_greedy_action(state)
         # call dqn greedy
+
+
 
     def train_network(self):
         loss = self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(50), self.num_steps_taken)  # CHANGE BATCH SIZE TODO
@@ -176,6 +179,12 @@ class DQN:
 
         # Access to the same replay buffer
         self.replay_buffer = None
+
+        # Epsilon
+        self.epsilon = 1
+
+        # First batch mean TD error
+        self.first_batch_td = None
 
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
@@ -226,7 +235,7 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
         # Update target network TODO HERE OR SOMEWHERE ELSE
-        if step_number % 50 == 0:
+        if step_number % 20 == 0:
             self.copy_weights_to_target_dqn()
 
         # Set all the gradients stored in the optimiser to zero.
@@ -235,6 +244,8 @@ class DQN:
         # print(tensor_state_actions)
         # Network predictions is a *x1 tensor of the current state action values in the batch
         tensor_current_state_action_value = self.q_network.forward(tensor_state_actions)
+        # print(tensor_current_state_action_value)
+        # raise
 
         # Calculate the greedy next state action values in the batch
         with torch.no_grad():
@@ -242,31 +253,47 @@ class DQN:
 
         # The bellman value of the current state action pairs in the batch
         tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_target_next_state_action_value
-        # print("bellman", tensor_bellman_current_state_value)
-        # The error between this bellman value and the current network's value for the same state action pairs in the batch
-        td_error = (tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()
-
-        # HERE USE INDICES AND TD_ERROR TO GENERATE WEIGHTS
-        # The numpy array will wrap around, while the deque is just moving, so to match up the deque indices that
-        # we receive in buffer_indices and the corresponding indices in the np array of transition weights
-        # we need to do some calculations
-        # This will be 0 when the deque is still growing
-        transition_weights_offset = (step_number - self.replay_buffer.length) % self.replay_buffer.buffer_max_len
-        transition_weights_indices = (buffer_indices + transition_weights_offset) % self.replay_buffer.buffer_max_len
-        print(transition_weights_offset)
-        print(buffer_indices)
-        print(transition_weights_indices)
-        print("length", self.replay_buffer.length)
-        print("done")
-
-        self.replay_buffer.transition_weights[transition_weights_indices] = np.abs(td_error).ravel()
-
-        # TODO MOST RECENT ADDITION ALWAYS APPENDED AT THE END, append weight as 0, and add it manually to the transitions in batching
-        # HERE THEN GET THE last normalised weight from the weight matrices, that will be the epsilon for next step
-
-
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_current_state_action_value)
+        loss.backward()
+        # print(loss.item())
+        # print(self.q_network.state_dict())
         self.optimiser.step()
+        # print("bellman", tensor_bellman_current_state_value)
+        # The absolute error between this bellman value and the current network's value for the same state action pairs in the batch
+        td_error = np.abs((tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()).ravel()
+
+        for index, error in zip(buffer_indices, td_error):
+            self.replay_buffer.transition_td_errors[index] = error
+
+        # HERE THEN GET THE last normalised weight from the weight matrices, that will be the epsilon for next step
+        # error will be the last error calculated which is the last one in the buffer
+        # HERE DO MEAN OF THE LAST COUPLE OF TD ERRORS FROM THE BACK OF THE DEQUE (THIS WILL BE MOST RECENT ONES)
+        # TAKE THE MEAN AND GET THE WEIGHT (=PROB) TO SEE IF THE ERROR IS LARGE
+
+        # LAST ERROR DIVIDED BY MEAN? LAST ERROR WILL ALWAYS BE SMALLER BCS OF TARGET NETWORK, DO QNETWORK HERE INSTEAD?
+        # COMPARE TO BEGINNING OF EPISODE?
+        # self.last_transition_td_error = (error - min(self.replay_buffer.transition_td_errors)) / (max(self.replay_buffer.transition_td_errors) - min(self.replay_buffer.transition_td_errors))
+        # self.epsilon = self.last_transition_td_error
+
+        # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
+        # COMPUTE THE Qnetwork value instead?
+        # start with low epsilon and increase over error uncertainty?
+
+        # We take the first random exploration as benchmark to determine what randomness means in terms of TD errors
+        # if self.first_batch_td is None:
+        #     self.first_batch_td = np.mean(td_error)
+        # # Latest error vs mean of first batch
+        # else:
+        #     self.epsilon = min(1, error / self.first_batch_td)
+
+        self.epsilon -= 0.001
+
+        # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
+        # print(self.last_transition_td_error)
+
+        # prints the value of the current state we are in, onlline
+        # print(buffer_indices[-1])
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
         return loss.item()
 
 
@@ -279,9 +306,18 @@ class DQN:
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This will now use the target_q_network
 
+    def epsilon_greedy_policy(self, greedy_action):
+        # RANDOM
+        print("eps", self.epsilon)
+        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+            action = self.test_current_state_actions[:, [2, 3]][np.random.randint(self.initial_sample_size)]
+            return np.array(action)
+        # GREEDY
+        else:
+            return greedy_action
 
     def return_greedy_action(self, state: np.ndarray):
-        print("mag")
+        # print("mag")
         # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
         # combine to get stateaction tensor, np gives double by default so cast to float
         # Insert the current state into the predefined numpy array convert into float tensor
@@ -399,14 +435,15 @@ class DQN:
 
 
 class ReplayBuffer:
-    def __init__(self, max_capacity, batch_size=50, ):
+    def __init__(self, max_capacity, batch_size=50):
         self.buffer_max_len = max_capacity
         self.replay_buffer = collections.deque(maxlen=self.buffer_max_len)
         self.batch_size = batch_size
         self.length = 0
         # Initialise an array for the weights for each transition in the buffer, will make this a numpy array where
         # the indices will wrap around at the max_length to avoid performance degradation of resizing arrays
-        self.transition_weights = np.ones(max_capacity)
+        # self.transition_weights = np.ones(max_capacity)
+        self.transition_td_errors = collections.deque(maxlen=self.buffer_max_len)
 
     def __len__(self):
         return len(self.replay_buffer)
@@ -421,22 +458,35 @@ class ReplayBuffer:
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
     # TODO 3
-    # TODO replace (len(self.replay_buffer) with manual addition
     # TODO PICK SAMPLE BASED ON WEIGHT, DO WEIGHTS NEED TO BE STORED SEPERATELY T OKEEP USING THE DEQUE? seperate weights array use DEQUE so can keep the same length automatically as the buffer
     def generate_batch(self, batch_size = False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
             batch_size = self.batch_size
 
+        sum_of_errors = sum(self.transition_td_errors)
+        # Adding a min probability constant to make sure transitions with small errors are still selected
+        # TODO make it scale to exactly 0.01 percent based on length and sum
+        min_probability_constant = 0.01 * sum_of_errors
 
-
+        # print(self.transition_td_errors)
+        # print(len(self.transition_td_errors))
+        # print(self.length)
         # Normalise weights
-        self.transition_weights[:self.length] = self.transition_weights[:self.length] / np.sum(self.transition_weights[:self.length])
+        weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
+                    sum_of_errors + min_probability_constant * self.length)
+        # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (sum_of_errors + min_probability_constant * self.length)
+        # print(weights)
+        # weights =
         state_actions = []
         rewards = []
         next_states = []
         # We generate random indices according to their TD error weights
-        indices = np.random.choice(range(self.length), batch_size, replace=False, p=self.transition_weights[:self.length]) # ADD WEIGHTING TO BUFFER TODO
+        indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
+        # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
+        # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
+        # this because append is slow and creates a copy
+        indices[-1] = self.length - 1
         for index in indices:
             transition = self.replay_buffer[index]
             state_actions.append(transition[0])  # 1x4 LIST
