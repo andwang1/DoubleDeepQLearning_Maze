@@ -112,10 +112,10 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 0.45 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 0.15 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 0.5 - distance_to_goal # TODO CHANGE HIGHER?
+            reward = 0.2 - distance_to_goal # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -135,7 +135,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 0.9
+    gamma = 1
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -286,6 +286,10 @@ class DQN:
             self.epsilon += 0.3
             # self.epsilon = max(0.3, self.epsilon)
 
+        self.epsilon = min(1, self.epsilon)
+        self.epsilon = max(0, self.epsilon)
+
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
         return loss.item()
          # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
         # COMPUTE THE Qnetwork value instead?
@@ -293,7 +297,7 @@ class DQN:
         # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
 
         # prints the value of the current state we are in, online
-        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
+
 
 
     def epsilon_greedy_policy(self, greedy_action, epsilon=False):
@@ -342,6 +346,33 @@ class DQN:
         # Get the best actions from that array
         best_actions = self.test_current_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
         action_mean = np.mean(best_actions, axis=0)
+        #
+        # # COMMENT OUT HERE TO HAVE ONLY 2 ITERATIONS
+        # # rowvar = False, tells numpy that columns are variables, and rows are samples, by default other way around
+        # action_cov = np.cov(best_actions, rowvar=False)
+        #
+        # # Sampling gives 3D matrix, reshape to 2D
+        # sampled_actions = np.random.multivariate_normal(action_mean, action_cov,
+        #                                                 size=(self.gauss_sample_size, 1)).reshape(-1, 2)
+        #
+        # # Normalise sampled actions to step length
+        # sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
+        # self.test_current_state_actions_gaussian[:, [0, 1]] = self.test_current_state_actions[:self.gauss_sample_size,
+        #                                                       [0, 1]]
+        # self.test_current_state_actions_gaussian[:, [2, 3]] = torch.tensor(sampled_actions).float()
+        #
+        # # Third iteration
+        # qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+        #
+        # # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
+        # indices_highest_values = qvalues_tensor.argsort(axis=0)[-5:].squeeze()
+        #
+        # # Get the best actions from that array
+        # best_actions = self.test_current_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
+        # action_mean = np.mean(best_actions, axis=0)
+        # END COMMENT OUT HERE
+
+
         greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
 
         # If the max step size is exceeded scale it back
@@ -349,6 +380,23 @@ class DQN:
             # action_mean *= 0.02 / np.linalg.norm(action_mean)
             print("STEP SIZE VIOLATED")
         return greedy_action
+
+    # # Second iteration
+    # qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+    #
+    # # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
+    # indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
+    #
+    # # Get the best actions from that array
+    # best_actions = self.test_current_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
+    # action_mean = np.mean(best_actions, axis=0)
+    # greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
+    #
+    # # If the max step size is exceeded scale it back
+    # if np.linalg.norm(greedy_action) > 0.02:
+    #     # action_mean *= 0.02 / np.linalg.norm(action_mean)
+    #     print("STEP SIZE VIOLATED")
+    # return greedy_action
 
 
     def return_next_state_q_greedy_target(self, transitions: torch.tensor): #TODO 1
