@@ -32,17 +32,19 @@ class Network(torch.nn.Module):
         # Call the initialisation function of the parent class.
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
-        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=150) #OVERFITTING?
-        self.layer_2 = torch.nn.Linear(in_features=150, out_features=100)
-        self.output_layer = torch.nn.Linear(in_features=100, out_features=output_dimension)
+        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        self.layer_2 = torch.nn.Linear(in_features=200, out_features=150)
+        self.output_layer = torch.nn.Linear(in_features=150, out_features=output_dimension)
+        torch.nn.init.xavier_uniform_(self.layer_1.weight)
+        torch.nn.init.xavier_uniform_(self.layer_2.weight)
+        torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
-        layer_1_output = torch.nn.functional.relu(self.layer_1(input))
+        layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
         layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
         output = self.output_layer(layer_2_output)
         return output
-
 
 class Agent:
 
@@ -84,7 +86,9 @@ class Agent:
         # RANDOM EXPLORATION IN BEGINNING
         if self.num_steps_taken < self.episode_length * 5:
             action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
-            action = np.array(action)
+            # Max out step length for exploration
+            action = np.array(action) / self.step_length * 0.02
+
             # if self.num_steps_taken > self.episode_length * 2.5:
             #     self.random_exploration_epsilon -= 1 / self.episode_length
             #     print(self.random_exploration_epsilon)
@@ -118,7 +122,7 @@ class Agent:
         # If stuck give negative reward
         if np.linalg.norm(self.state - next_state) < 0.002:
             # print("NOMOVE")
-            reward = -.75 * distance_to_goal
+            reward = -.85 * distance_to_goal
         else:
             reward = 0.5 - distance_to_goal
 
@@ -141,7 +145,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 0.4
+    gamma = 0.9
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -234,7 +238,7 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
         # Update target network TODO HERE OR SOMEWHERE ELSE
-        if step_number % 60 == 0:
+        if step_number % 40 == 0:
             self.copy_weights_to_target_dqn()
 
         # DEBUG
@@ -326,7 +330,7 @@ class DQN:
 
         # prints the value of the current state we are in, onlline
         # print(buffer_indices[-1])
-        # print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
         return loss.item()
 
 
