@@ -33,8 +33,11 @@ class Network(torch.nn.Module):
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=150) #OVERFITTING?
-        self.layer_2 = torch.nn.Linear(in_features=150, out_features=100)
-        self.output_layer = torch.nn.Linear(in_features=100, out_features=output_dimension)
+        self.layer_2 = torch.nn.Linear(in_features=150, out_features=150)
+        self.output_layer = torch.nn.Linear(in_features=150, out_features=output_dimension)
+        torch.nn.init.xavier_uniform_(self.layer_1.weight)
+        torch.nn.init.xavier_uniform_(self.layer_2.weight)
+        torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
@@ -62,7 +65,7 @@ class Agent:
         self.buffer_size = 2000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
-        self.step_length = 0.015  # TODO size of normalisation
+        self.step_length = 0.01  # TODO size of normalisation
         # DQN
         self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
@@ -94,14 +97,8 @@ class Agent:
             #     action = np.array(action)
 
         else:
-            # PLUG DIRECTLY INTO HERE TO REDUCE FUNCTION CALLS
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
 
-            # DEBUG SEE WHAT HAPPENS AT START AND END OF EPISODES
-            # if self.num_steps_taken % self.episode_length <10:
-            #     time.sleep(0.5)
-            # if self.num_steps_taken % self.episode_length >90:
-            #     time.sleep(0.5)
 
 
         # Update the number of steps which the agent has taken
@@ -118,7 +115,7 @@ class Agent:
         # If stuck give negative reward
         if np.linalg.norm(self.state - next_state) < 0.002:
             # print("NOMOVE")
-            reward = -.75 * distance_to_goal
+            reward = -.85 * distance_to_goal
         else:
             reward = 0.5 - distance_to_goal
 
@@ -141,7 +138,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 0.4
+    gamma = 0.6
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -291,7 +288,7 @@ class DQN:
         # Set epsilon at start of episode
         if step_number % self.episode_length == 1:
             self.epsilon = 0.2
-        # TODO CHANGE EPSILON CHANGE MAKE BIGGER< MAKE GAUSSIAN BIGGER
+        # make the epsilon increase scale with total step size
         # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
         if self.avg_td_error_mean:
             self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
@@ -349,6 +346,7 @@ class DQN:
             return np.array(action)
         # GREEDY
         else:
+            print("GREEDY")
             return greedy_action
 
     def return_greedy_action(self, state: np.ndarray):
