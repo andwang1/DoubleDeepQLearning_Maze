@@ -32,8 +32,8 @@ class Network(torch.nn.Module):
         # Call the initialisation function of the parent class.
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
-        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=150) #OVERFITTING?
-        self.layer_2 = torch.nn.Linear(in_features=150, out_features=150)
+        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        self.layer_2 = torch.nn.Linear(in_features=200, out_features=150)
         self.output_layer = torch.nn.Linear(in_features=150, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
@@ -60,7 +60,7 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Batch size for replay buffer
-        self.batch_size = 60
+        self.batch_size = 100
         # Replay buffer
         self.buffer_size = 2000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
@@ -111,10 +111,8 @@ class Agent:
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
-        # HERE CHANGE THE REWARD TODO
         # If stuck give negative reward
         if np.linalg.norm(self.state - next_state) < 0.002:
-            # print("NOMOVE")
             reward = -.85 * distance_to_goal
         else:
             reward = 0.5 - distance_to_goal
@@ -133,7 +131,6 @@ class Agent:
         # CROSS ENTROPY METHOD
     def get_greedy_action(self, state: np.ndarray):
         return self.dqn.return_greedy_action(state)
-        # call dqn greedy
 
 
 # The DQN class determines how to train the above neural network.
@@ -230,7 +227,7 @@ class DQN:
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
-        # Update target network TODO HERE OR SOMEWHERE ELSE
+        # Update target network TODO
         if step_number % 60 == 0:
             self.copy_weights_to_target_dqn()
 
@@ -490,8 +487,7 @@ class ReplayBuffer:
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
-    # TODO 3
-    # TODO PICK SAMPLE BASED ON WEIGHT, DO WEIGHTS NEED TO BE STORED SEPERATELY T OKEEP USING THE DEQUE? seperate weights array use DEQUE so can keep the same length automatically as the buffer
+    # TODO REVIEW THIS AND ADD THE MINIMUM PROBABILITY
     def generate_batch(self, batch_size = False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
