@@ -159,7 +159,7 @@ class DQN:
         # Sample size for initial sampling of actions to determine greedy action
         self.angles_between_actions = angles_between_actions
         # First (uniform) sample size
-        self.sample_size = int(360 / self.angles_between_actions)
+        self.initial_sample_size = int(360 / self.angles_between_actions)
         # Gaussian sample size
         self.gauss_sample_size = 20
 
@@ -177,13 +177,13 @@ class DQN:
         x_steps = np.cos(angles) * self.step_length
         y_steps = np.sin(angles) * self.step_length
 
-        self.test_current_state_actions = np.empty((self.sample_size, 4))
+        self.test_current_state_actions = np.empty((self.initial_sample_size, 4))
         self.test_current_state_actions[:, 2] = x_steps
         self.test_current_state_actions[:, 3] = y_steps
         self.test_current_state_actions = torch.tensor(self.test_current_state_actions).float()
 
         # For each next state in the batch of transitions, we need to test num_of_samples actions to find the greedy action
-        self.test_next_state_actions = np.empty((self.batch_size * self.sample_size, 4))
+        self.test_next_state_actions = np.empty((self.batch_size * self.initial_sample_size, 4))
         # Take the generated actions and write them into the empty np array to be used for testing
         self.test_next_state_actions[:, [2, 3]] = np.tile(self.test_current_state_actions[:, [2, 3]], reps=(self.batch_size, 1))
         self.test_next_state_actions = torch.tensor(self.test_next_state_actions).float()
@@ -218,8 +218,7 @@ class DQN:
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number):
-
-        # Update target network
+        # Update target network TODO HERE OR SOMEWHERE ELSE
         if step_number % 50 == 0:
             self.copy_weights_to_target_dqn()
 
@@ -227,20 +226,21 @@ class DQN:
         self.optimiser.zero_grad()
         tensor_state_actions, tensor_rewards, tensor_next_states = transitions
         # print(tensor_state_actions)
-        # Network predictions is a *x1 tensor of a state action values
-        network_predictions = self.q_network.forward(tensor_state_actions)
+        # Network predictions is a *x1 tensor of the current state action values in the batch
+        tensor_current_state_action_value = self.q_network.forward(tensor_state_actions)
 
+        # Calculate the greedy next state action values in the batch
         with torch.no_grad():
-            target_q_predictions = self.target_q_network.forward(self.return_next_state_q_greedy_target(transitions))
+            tensor_target_next_state_action_value = self.target_q_network.forward(self.return_next_state_q_greedy_target(transitions))
 
-        tensor_bellman_current_state_value = tensor_rewards + self.gamma * target_q_predictions
+        # The bellman value of the current state action pairs in the batch
+        tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_target_next_state_action_value
+        # print("bellman", tensor_bellman_current_state_value)
+        # The error between this bellman value and the current network's value for the same state action pairs in the batch
+        td_error = tensor_bellman_current_state_value - tensor_current_state_action_value
 
-        loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, network_predictions)
-        td_error = tensor_bellman_current_state_value - network_predictions
-
-        print("bellman", tensor_bellman_current_state_value)
+        loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_current_state_action_value)
         self.optimiser.step()
-        # Return the loss as a scalar
         return loss.item()
 
 
@@ -260,7 +260,7 @@ class DQN:
         # combine to get stateaction tensor, np gives double by default so cast to float
         # Insert the current state into the predefined numpy array convert into float tensor
         # CROSS ENTROPY
-        self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
+        self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.initial_sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions)
         # print(qvalues_tensor)
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
@@ -288,7 +288,7 @@ class DQN:
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
         # print(qvalues_tensor)
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
-        indices_highest_values = qvalues_tensor.argsort(axis=0)[-5:].squeeze()
+        indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
         # print(indices_highest_values)
         # Get the best actions from that array
         best_actions = self.test_current_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
@@ -315,35 +315,38 @@ class DQN:
 
 
     def return_next_state_q_greedy_target(self, transitions: np.ndarray): #TODO 1
-        next_states = transitions[2]
+        next_states = torch.tensor(transitions[2])
         # print(next_states)
         # print(self.test_next_state_actions[:, [0, 1]].shape)
-        self.test_next_state_actions[:, [0, 1]] = torch.tensor(np.tile(next_states, (self.sample_size, 1)))
+
+        # write states into test by repeating, so every state is matched with each action from the initial sample
+        self.test_next_state_actions[:, [0, 1]] = np.repeat(next_states, self.initial_sample_size, axis=0)
+
+        # write states into gaussian test by repeating, for later, the first gauss_sample_size rows will are the same state
+        self.test_next_state_actions_gaussian[:, [0, 1]] = np.repeat(next_states, self.gauss_sample_size, axis=0)
+
+        # print(self.test_next_state_actions[:80])
+        # print(self.test_next_state_actions[140:160])
+        # # raise
         with torch.no_grad():
             qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions)
 
-        # write states into gaussian test by repeating
-        self.test_next_state_actions_gaussian[:, [0, 1]] = np.repeat(next_states, self.gauss_sample_size, axis=0)
-
-        # here need to now do for every batch
-        # actions_means = []
-        # actions_covs = []
+        # For every batch, get the actions corresponding to highest qvalues, resample and add into the gaussian test array
         gauss_start_index = 0
-        gauss_end_index = gauss_start_index + self.gauss_sample_size
-        for batch_end_index in range(self.sample_size, self.batch_size * self.sample_size + 1, self.sample_size):
-            batch_start_index = batch_end_index - self.sample_size
+        gauss_end_index = self.gauss_sample_size
+        for batch_end_index in range(self.initial_sample_size, self.batch_size * self.initial_sample_size + 1, self.initial_sample_size):
+            batch_start_index = batch_end_index - self.initial_sample_size
+            # Get the indices corresponding to the 20 best actions based on the qvalues
             indices_highest_values = qvalues_tensor[batch_start_index:batch_end_index].argsort(axis=0)[-20:].squeeze()
             best_actions = self.test_next_state_actions[:, [2, 3]][indices_highest_values].numpy()
             action_mean = np.mean(best_actions, axis=0)
-            # actions_means.append(action_mean)
             action_cov = np.cov(best_actions, rowvar=False)
-            # actions_covs.append(action_cov)
             sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(self.gauss_sample_size, 1)).reshape(-1, 2)
             sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
 
             # Add sampled actions to the gaussian matrix
             self.test_next_state_actions_gaussian[gauss_start_index:gauss_end_index, [2, 3]] = torch.tensor(sampled_actions).float()
-            gauss_start_index = gauss_end_index
+            gauss_start_index += self.gauss_sample_size
             gauss_end_index += self.gauss_sample_size
 
         # Second iteration
@@ -351,10 +354,10 @@ class DQN:
         with torch.no_grad():
             qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions_gaussian)
         # print(qvalues_tensor)
-        # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
+        # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
         for batch_end_index in range(self.gauss_sample_size, self.batch_size * self.gauss_sample_size + 1, self.gauss_sample_size):
             batch_start_index = batch_end_index - self.gauss_sample_size
-            indices_highest_values = qvalues_tensor[batch_start_index:batch_end_index].argsort(axis=0)[-20:].squeeze()
+            indices_highest_values = qvalues_tensor[batch_start_index:batch_end_index].argsort(axis=0)[-10:].squeeze()
             best_actions = self.test_next_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
             action_mean = np.mean(best_actions, axis=0)
             greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
@@ -365,14 +368,8 @@ class DQN:
         print("return target q")
         return self.target_greedy_state_action_pairs
 
-        # use np array to take the next states from the batch and fill them into the big array
-        # where the actions are preallocated (only once at initialisation), at each degree of half degree at same length = stepsize, circle with radius step size
-        # then for each batch, pick the states from the batch and fill them into the preallocated numpy array (OR TENSOR)
-        # plug that into forward, for each batch (precompute indices) pick the best actions (arg sort on slices one for each batch)
-        # -----
-        # gaussian (how most efficient)
+        # gaussian (how most efficient) TODO EFFICIENCY
         # repeat (here have a precomputed empty array again, with the predefined gaussian sample sizes etc
-        pass
 
 
 class ReplayBuffer:
