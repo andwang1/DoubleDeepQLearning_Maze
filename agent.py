@@ -48,11 +48,10 @@ class Network(torch.nn.Module):
 
 
 class Agent:
-
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 250 # 100 is the episode they will run at TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -60,12 +59,12 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Batch size for replay buffer
-        self.batch_size = 100
+        self.batch_size = 40
         # Replay buffer
-        self.buffer_size = 2000
+        self.buffer_size = 1400 # Make sure this is in line with random exploration
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
-        self.step_length = 0.01  # TODO size of normalisation
+        self.step_length = 0.015  # TODO size of normalisation
         # DQN
         self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
@@ -74,6 +73,8 @@ class Agent:
         self.dqn.replay_buffer = self.replay_buffer
 
         self.random_exploration_epsilon = 1
+
+        self.got_stuck = False
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
@@ -99,8 +100,6 @@ class Agent:
         else:
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
 
-
-
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
         # Store the state; this will be used later, when storing the transition STORE AS LIST EFFICIENCY
@@ -111,11 +110,12 @@ class Agent:
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
-        # If stuck give negative reward
-        if np.linalg.norm(self.state - next_state) < 0.002:
-            reward = -.85 * distance_to_goal
+        if np.linalg.norm(self.state - next_state) < 0.0002:
+            self.got_stuck = True
+            reward = 0.45 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
-            reward = 0.5 - distance_to_goal
+            self.got_stuck = False
+            reward = 0.5 - distance_to_goal # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -126,7 +126,7 @@ class Agent:
 
         # Train
         if self.num_steps_taken > self.episode_length * 4.5:
-            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken)
+            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck)
 
         # CROSS ENTROPY METHOD
     def get_greedy_action(self, state: np.ndarray):
@@ -135,7 +135,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 0.6
+    gamma = 0.9
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -226,23 +226,16 @@ class DQN:
         return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
 
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
-    def train_q_network_batch(self, transitions: tuple, step_number):
+    def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         # Update target network TODO
         if step_number % 60 == 0:
             self.copy_weights_to_target_dqn()
 
-        # DEBUG
-        if step_number % 1000 == 0:
-            print("step", step_number, self.replay_buffer.length)
-
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
         tensor_state_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
-        # print(tensor_state_actions)
         # Network predictions is a *x1 tensor of the current state action values in the batch
         tensor_current_state_action_value = self.q_network.forward(tensor_state_actions)
-        # print(tensor_current_state_action_value)
-        # raise
 
         # Calculate the greedy next state action values in the batch
         with torch.no_grad():
@@ -252,10 +245,7 @@ class DQN:
         tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_target_next_state_action_value
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_current_state_action_value)
         loss.backward()
-        # print(loss.item())
-        # print(self.q_network.state_dict())
         self.optimiser.step()
-        # print("bellman", tensor_bellman_current_state_value)
         # The absolute error between this bellman value and the current network's value for the same state action pairs in the batch
         td_error = np.abs((tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()).ravel()
 
@@ -287,51 +277,24 @@ class DQN:
             self.epsilon = 0.2
         # make the epsilon increase scale with total step size
         # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
-        if self.avg_td_error_mean:
-            self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
-            if self.epsilon < 0.05:
-                self.epsilon = 0.05
-            elif self.epsilon > 0.9:
-                self.epsilon = 0.9
-
-
         # error will be the last error calculated which is the last one in the buffer
 
-        # LAST ERROR DIVIDED BY MEAN? LAST ERROR WILL ALWAYS BE SMALLER BCS OF TARGET NETWORK, DO QNETWORK HERE INSTEAD?
-        # COMPARE TO BEGINNING OF EPISODE?
-        # self.last_transition_td_error = (error - min(self.replay_buffer.transition_td_errors)) / (max(self.replay_buffer.transition_td_errors) - min(self.replay_buffer.transition_td_errors))
-        # self.epsilon = self.last_transition_td_error
+        if self.avg_td_error_mean:
+            self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
 
-        # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
+        if got_stuck and self.epsilon < 0.1:
+            self.epsilon += 0.3
+            # self.epsilon = max(0.3, self.epsilon)
+
+        return loss.item()
+         # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
         # COMPUTE THE Qnetwork value instead?
-        # start with low epsilon and increase over error uncertainty?
-
-        # We take the first random exploration as benchmark to determine what randomness means in terms of TD errors
-        # if self.first_batch_td is None:
-        #     self.first_batch_td = np.mean(td_error)
-        # # Latest error vs mean of first batch
-        # else:
-        #     self.epsilon = min(1, error / self.first_batch_td)
-
-
 
         # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
-        # print(self.last_transition_td_error)
 
-        # prints the value of the current state we are in, onlline
-        # print(buffer_indices[-1])
-        # print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
-        return loss.item()
+        # prints the value of the current state we are in, online
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
 
-
-        # TODO 2 use all TD ERRORS TO UPDATE WEIGHTS IN THE BATCH AND ALSO SET THE EPSILON FOR THE NEXT STEP
-        # NEED TO SET THE WEIGHT FOR THE CURRENT TRANSITION equal to 1 so that it gets picked for sure and get the TD error for that, maybe append it lsat to the preformed batch? so batch size 119 plus current transition?
-        # return indices of weight array from batch picking
-        # Target action
-        # target_actions
-
-        # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
-        # This will now use the target_q_network
 
     def epsilon_greedy_policy(self, greedy_action, epsilon=False):
         if not epsilon:
@@ -343,33 +306,27 @@ class DQN:
             return np.array(action)
         # GREEDY
         else:
-            print("GREEDY")
             return greedy_action
 
     def return_greedy_action(self, state: np.ndarray):
-        # print("mag")
         # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
         # combine to get stateaction tensor, np gives double by default so cast to float
         # Insert the current state into the predefined numpy array convert into float tensor
         # CROSS ENTROPY
         self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.initial_sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions)
-        # print(qvalues_tensor)
+
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
-        # print(indices_highest_values)
+
         # Get the best actions from that array, convert to numpy to use np mean function
         best_actions = self.test_current_state_actions[:, [2, 3]][indices_highest_values].numpy()
-        # print("best", best_actions)
         action_mean = np.mean(best_actions, axis=0)
-        # print(action_mean)
-
         # rowvar = False, tells numpy that columns are variables, and rows are samples, by default other way around
         action_cov = np.cov(best_actions, rowvar=False)
 
         # Sampling gives 3D matrix, reshape to 2D
         sampled_actions = np.random.multivariate_normal(action_mean, action_cov, size=(self.gauss_sample_size, 1)).reshape(-1, 2)
-        # NEED TO TILE
 
         # Normalise sampled actions to step length
         sampled_actions = sampled_actions / (np.linalg.norm(sampled_actions, axis=1).reshape(-1, 1)) * self.step_length
@@ -378,28 +335,16 @@ class DQN:
 
         # Second iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
-        # print(qvalues_tensor)
+
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
-        # print(indices_highest_values)
+
         # Get the best actions from that array
         best_actions = self.test_current_state_actions_gaussian[:, [2, 3]][indices_highest_values].numpy()
-        # print(best_actions)
         action_mean = np.mean(best_actions, axis=0)
-        # print("mean", action_mean)
         greedy_action = action_mean / np.linalg.norm(action_mean) * self.step_length
 
-        # print(np.linalg.norm(sampled_actions[0]))
-        # print(np.linalg.norm(sampled_actions, axis=1))
-        # print(sampled_actions)
-        # print("samples")
-        # print(sampled_actions)
-
-        # print("state", state)
-        # print("action", action_mean)
-        # TODO SEE IF REQUIRED
         # If the max step size is exceeded scale it back
-        # print("greedy action chosen")
         if np.linalg.norm(greedy_action) > 0.02:
             # action_mean *= 0.02 / np.linalg.norm(action_mean)
             print("STEP SIZE VIOLATED")
@@ -408,8 +353,6 @@ class DQN:
 
     def return_next_state_q_greedy_target(self, transitions: torch.tensor): #TODO 1
         next_states = transitions[2]
-        # print(next_states)
-        # print(self.test_next_state_actions[:, [0, 1]].shape)
 
         # write states into test by repeating, so every state is matched with each action from the initial sample
         self.test_next_state_actions[:, [0, 1]] = np.repeat(next_states, self.initial_sample_size, axis=0)
@@ -417,9 +360,6 @@ class DQN:
         # write states into gaussian test by repeating, for later, the first gauss_sample_size rows will are the same state
         self.test_next_state_actions_gaussian[:, [0, 1]] = np.repeat(next_states, self.gauss_sample_size, axis=0)
 
-        # print(self.test_next_state_actions[:80])
-        # print(self.test_next_state_actions[140:160])
-        # # raise
         with torch.no_grad():
             qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions)
 
@@ -445,7 +385,7 @@ class DQN:
         greedy_actions = []
         with torch.no_grad():
             qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions_gaussian)
-        # print(qvalues_tensor)
+
         # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
         for batch_end_index in range(self.gauss_sample_size, self.batch_size * self.gauss_sample_size + 1, self.gauss_sample_size):
             batch_start_index = batch_end_index - self.gauss_sample_size
@@ -457,12 +397,9 @@ class DQN:
 
         self.target_greedy_state_action_pairs[:, [0, 1]] = next_states
         self.target_greedy_state_action_pairs[:, [2, 3]] = torch.tensor(greedy_actions)
-        # print("return target q")
         return self.target_greedy_state_action_pairs
 
         # gaussian (how most efficient) TODO EFFICIENCY
-        # repeat (here have a precomputed empty array again, with the predefined gaussian sample sizes etc
-
 
 class ReplayBuffer:
     def __init__(self, max_capacity, batch_size=50):
@@ -487,23 +424,22 @@ class ReplayBuffer:
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
-    # TODO REVIEW THIS AND ADD THE MINIMUM PROBABILITY
+    # TODO REVIEW THIS
     def generate_batch(self, batch_size = False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
             batch_size = self.batch_size
 
-        sum_of_errors = sum(self.transition_td_errors)
+
         # Adding a min probability constant to make sure transitions with small errors are still selected
-        # TODO make it scale to exactly 0.01 percent based on length and sum
-        min_probability_constant = 0.01 * sum_of_errors
+        min_probability_constant = 0.05
 
         # print(self.transition_td_errors)
         # print(len(self.transition_td_errors))
         # print(self.length)
         # Normalise weights
         weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
-                    sum_of_errors + min_probability_constant * self.length)
+                    sum(self.transition_td_errors) + min_probability_constant * self.length)
         # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (sum_of_errors + min_probability_constant * self.length)
         # print(weights)
         # weights =
