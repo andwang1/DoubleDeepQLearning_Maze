@@ -58,6 +58,7 @@ class Agent:
         # Set the episode length (you will need to increase this)
         self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
+        self.episode_counter = 0
         # Set random exploration episode length
         self.random_exploration_episode_length = 450
         self.exploration_length = 6
@@ -100,6 +101,9 @@ class Agent:
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
         if self.num_steps_taken < self.steps_made_in_exploration:
+
+            
+
             self.episode_length = self.random_exploration_episode_length
             action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
             # Make small steps during random exploration
@@ -115,6 +119,8 @@ class Agent:
         else:
             self.episode_length = self.actual_episode_length
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
+
+
 
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
@@ -439,8 +445,12 @@ class DQN:
         # write states into gaussian test by repeating, for later, the first gauss_sample_size rows will are the same state
         self.test_next_state_actions_gaussian[:, [0, 1]] = np.repeat(next_states, self.gauss_sample_size, axis=0)
 
-        with torch.no_grad():
-            qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions)
+        # NO DOUBLE Q
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions)
+
+        # DOUBLE Q
+        qvalues_tensor = self.q_network.forward(self.test_next_state_actions)
 
         # For every batch, get the actions corresponding to highest qvalues, resample and add into the gaussian test array
         gauss_start_index = 0
@@ -462,8 +472,12 @@ class DQN:
 
         # Second iteration
         greedy_actions = []
-        with torch.no_grad():
-            qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions_gaussian)
+        # NO DOUBLE Q
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_next_state_actions_gaussian)
+
+        # DOUBLE Q
+        qvalues_tensor = self.q_network.forward(self.test_next_state_actions_gaussian)
 
         # argsort returns the indices from low to high, pick last 10 to get the 10 largest values
         for batch_end_index in range(self.gauss_sample_size, self.batch_size * self.gauss_sample_size + 1, self.gauss_sample_size):
