@@ -89,8 +89,6 @@ class Agent:
 
         self.got_stuck = False
 
-        self.reward_factor = 1
-
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
@@ -128,14 +126,12 @@ class Agent:
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
-        self.reward_factor *= 1.0001
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
             reward = 1.40 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
             reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
-        # reward *= self.reward_factor
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
