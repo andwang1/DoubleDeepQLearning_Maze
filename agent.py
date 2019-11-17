@@ -60,8 +60,8 @@ class Agent:
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
         # Set random exploration episode length
-        self.random_exploration_episode_length = 450
-        self.exploration_length = 6
+        self.random_exploration_episode_length = 120
+        self.exploration_length = 20
         self.random_exploration_step_size = 0.01
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
@@ -93,6 +93,7 @@ class Agent:
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
+            self.episode_counter += 1
             return True
         else:
             return False
@@ -101,11 +102,30 @@ class Agent:
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
         if self.num_steps_taken < self.steps_made_in_exploration:
-
-            
-
             self.episode_length = self.random_exploration_episode_length
-            action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+            # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
+            if self.episode_counter < 18:
+                if self.num_steps_taken % self.episode_length < 20:
+                    quadrant_start_index = self.episode_counter * 10
+                    quadrant_end_index = (self.episode_counter + 1) * 10
+                    # print(quadrant_end_index)
+                    action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
+                        np.random.randint(10)]
+                else:
+                    action = self.dqn.test_current_state_actions[:, [2, 3]][
+                        np.random.randint(self.dqn.initial_sample_size)]
+            elif self.episode_counter == 18:
+                print("RIGHT")
+                if self.num_steps_taken % self.episode_length < 20:
+                    quadrant_indices = list(range(-10, 11))
+                    # print(quadrant_end_index)
+                    action = self.dqn.test_current_state_actions[quadrant_indices, [2, 3]][
+                        np.random.randint(len(quadrant_indices))]
+                else:
+                    action = self.dqn.test_current_state_actions[:, [2, 3]][
+                        np.random.randint(self.dqn.initial_sample_size)]
+            else:
+                action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
             # Make small steps during random exploration
             action = np.array(action) / self.step_length * self.random_exploration_step_size
             # if self.num_steps_taken > self.episode_length * 2.5:
@@ -119,8 +139,6 @@ class Agent:
         else:
             self.episode_length = self.actual_episode_length
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
-
-
 
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
