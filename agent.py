@@ -51,7 +51,7 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 350 # TODO SCALE WITH TIME?
+        self.episode_length = 300 # TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -59,13 +59,13 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Batch size for replay buffer
-        self.batch_size = 40
+        self.batch_size = 60
         # Replay buffer
         self.exploration_length = 4
-        self.buffer_size = self.episode_length * self.exploration_length # Make sure this is in line with random exploration
+        self.buffer_size = self.episode_length * (self.exploration_length + 1) # Make sure this is in line with random exploration
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
-        self.step_length = 0.010  # TODO size of normalisation
+        self.step_length = 0.015  # TODO size of normalisation
         # DQN
         self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
@@ -130,19 +130,20 @@ class Agent:
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
+        # Negative penalty
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 0.33 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 1.38 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 0.35 - distance_to_goal # TODO CHANGE HIGHER?
+            reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
 
-        if np.linalg.norm(self.state - next_state) < 0.0002:
-            self.got_stuck = True
-            reward = 0.35 - distance_to_goal  # TODO CHANGE HIGHER?
-        else:
-            self.got_stuck = False
-            reward = 0.35 - distance_to_goal + np.linalg.norm(self.state - next_state) # TODO CHANGE HIGHER?
+        # if np.linalg.norm(self.state - next_state) < 0.0002:
+        #     self.got_stuck = True
+        #     reward = 0.35 - distance_to_goal  # TODO CHANGE HIGHER?
+        # else:
+        #     self.got_stuck = False
+        #     reward = 0.35 - distance_to_goal + np.linalg.norm(self.state - next_state) # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -169,7 +170,7 @@ class DQN:
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.002)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
@@ -204,9 +205,9 @@ class DQN:
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
     def create_sample_test_steps(self):
-        angles = np.array(np.arange(0, 360, self.angles_between_actions))
-        x_steps = np.cos(angles) * self.step_length
-        y_steps = np.sin(angles) * self.step_length
+        radians = np.deg2rad(np.array(np.arange(0, 360, self.angles_between_actions)))
+        x_steps = np.cos(radians) * self.step_length
+        y_steps = np.sin(radians) * self.step_length
 
         self.test_current_state_actions = np.empty((self.initial_sample_size, 4))
         self.test_current_state_actions[:, 2] = x_steps
@@ -236,26 +237,10 @@ class DQN:
         else:
             self.target_q_network.load_state_dict(self.q_network.state_dict())
 
-    # Function to calculate the loss for a single transition.
-    def _calculate_loss(self, transition):
-        current_state, action, reward, next_state = transition
-        # Current state is 0x2, unsqueeze to convert to 1x2, as all functions need 2D tensors
-        input_tensor = torch.tensor(current_state).unsqueeze(0)
-        # Network prediction is a 1x4 tensor of 4 state value predictions, one for each action
-        network_prediction = self.q_network.forward(input_tensor)
-        # Turn action and reward into a 2D 1x1 tensor as gather and MSELoss take 2D tensors
-        tensor_action_index = torch.tensor([[action]])
-        reward_tensor = torch.tensor([[reward]])
-        # Select for each 1x4 tensor of network predictions the 1x1 tensor related to the action in the transition
-        # Gather is like indexing, 1 is the axis, pick the index in the column given by tensor_action_index
-        # Output will always be the same dimension as the tensor_action_index, like masking
-        predicted_q_for_action = torch.gather(network_prediction, 1, tensor_action_index)
-        return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
-
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         # Update target network TODO
-        if step_number % 60 == 0:
+        if step_number % 40 == 0:
             self.copy_weights_to_target_dqn()
 
         # Set all the gradients stored in the optimiser to zero.
