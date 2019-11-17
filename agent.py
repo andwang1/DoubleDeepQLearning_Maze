@@ -105,7 +105,7 @@ class Agent:
             self.episode_length = self.random_exploration_episode_length
             # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
             if self.episode_counter < 18:
-                if self.num_steps_taken % self.episode_length < 20:
+                if self.num_steps_taken % self.episode_length < 30:
                     quadrant_start_index = self.episode_counter * 10
                     quadrant_end_index = (self.episode_counter + 1) * 10
                     # print(quadrant_end_index)
@@ -116,10 +116,11 @@ class Agent:
                         np.random.randint(self.dqn.initial_sample_size)]
             elif self.episode_counter == 18:
                 print("RIGHT")
-                if self.num_steps_taken % self.episode_length < 20:
+                if self.num_steps_taken % self.episode_length < 30:
                     quadrant_indices = list(range(-10, 11))
                     # print(quadrant_end_index)
-                    action = self.dqn.test_current_state_actions[quadrant_indices, [2, 3]][
+                    # HERE SLICE INSTEAD OF INDEX TO KEEP DIMENSINOS
+                    action = self.dqn.test_current_state_actions[quadrant_indices, 2: 4][
                         np.random.randint(len(quadrant_indices))]
                 else:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
@@ -160,9 +161,9 @@ class Agent:
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
         self.replay_buffer.add(transition)
-        # Add new weight of 0 for the newest transition, we will make sure this gets picked manually by adding to batch
+        # Add new weight of 1 for the newest transition, we will make sure this gets picked manually by adding to batch
         # Cannot make this 0 for some reason will give error ValueError: probabilities contain NaN
-        self.replay_buffer.transition_td_errors.append(0.0001)
+        self.replay_buffer.transition_td_errors.append(1)
 
         # Train
         if self.num_steps_taken > self.training_threshhold:
