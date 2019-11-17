@@ -115,7 +115,6 @@ class Agent:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
             elif self.episode_counter == 18:
-                print("RIGHT")
                 if self.num_steps_taken % self.episode_length < 30:
                     quadrant_indices = list(range(-10, 11))
                     # print(quadrant_end_index)
@@ -381,6 +380,10 @@ class DQN:
         self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.initial_sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions)
 
+        # DOUBLE Q USE TARGET
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions)
+
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
 
@@ -400,6 +403,10 @@ class DQN:
 
         # Second iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+        
+        # DOUBLE Q
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions_gaussian)
 
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
@@ -422,6 +429,9 @@ class DQN:
 
         # Third iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions_gaussian)
 
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-5:].squeeze()
