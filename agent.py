@@ -34,16 +34,19 @@ class Network(torch.nn.Module):
         # Define the network layers. This example network has two hidden layers, each with 100 units.
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
+        self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
+        torch.nn.init.xavier_uniform_(self.layer_3.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
         layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
         layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
-        output = self.output_layer(layer_2_output)
+        layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_2_output))
+        output = self.output_layer(layer_3_output)
         return output
 
 
@@ -156,7 +159,7 @@ class DQN:
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
         self.steps_copy_target = 60
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.003)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
