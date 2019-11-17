@@ -50,19 +50,28 @@ class Network(torch.nn.Module):
 class Agent:
     # Function to initialise the agent
     def __init__(self):
+        # Replay buffer batch size
+        self.batch_size = 40
         # Set the episode length (you will need to increase this)
         self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.actual_episode_length = self.episode_length
+        # Set random exploration episode length
+        self.random_exploration_episode_length = 500
+        self.exploration_length = 5
+        self.random_exploration_step_size = 0.01
+        self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
+
+        # Set number of steps at which to start training
+        steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
+        self.training_threshhold = int(self.steps_made_in_exploration - steps_needed_with_batch_to_train * 2 - 40)
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
         self.state = None
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
-        # Batch size for replay buffer
-        self.batch_size = 40
         # Replay buffer
-        self.exploration_length = 5
-        self.buffer_size = self.episode_length * (self.exploration_length + 1) # Make sure this is in line with random exploration
+        self.buffer_size = self.training_threshhold
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -87,10 +96,11 @@ class Agent:
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
     def get_next_action(self, state: np.ndarray):
         # RANDOM EXPLORATION IN BEGINNING
-        if self.num_steps_taken < self.episode_length * self.exploration_length:
+        if self.num_steps_taken < self.steps_made_in_exploration:
+            self.episode_length = self.random_exploration_episode_length
             action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
             # Make small steps during random exploration
-            action = np.array(action) / self.step_length * 0.01
+            action = np.array(action) / self.step_length * self.random_exploration_step_size
             # if self.num_steps_taken > self.episode_length * 2.5:
             #     self.random_exploration_epsilon -= 1 / self.episode_length
             #     print(self.random_exploration_epsilon)
@@ -100,6 +110,7 @@ class Agent:
             #     action = np.array(action)
 
         else:
+            self.episode_length = self.actual_episode_length
             action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
 
         # Update the number of steps which the agent has taken
@@ -114,7 +125,7 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 1.41 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 1.408 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
             reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
@@ -127,7 +138,7 @@ class Agent:
         self.replay_buffer.transition_td_errors.append(0.0001)
 
         # Train
-        if self.num_steps_taken > self.episode_length * (self.exploration_length - 0.5):
+        if self.num_steps_taken > self.training_threshhold:
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck)
 
         # CROSS ENTROPY METHOD
@@ -211,22 +222,6 @@ class DQN:
         else:
             self.target_q_network.load_state_dict(self.q_network.state_dict())
 
-    # Function to calculate the loss for a single transition.
-    def _calculate_loss(self, transition):
-        current_state, action, reward, next_state = transition
-        # Current state is 0x2, unsqueeze to convert to 1x2, as all functions need 2D tensors
-        input_tensor = torch.tensor(current_state).unsqueeze(0)
-        # Network prediction is a 1x4 tensor of 4 state value predictions, one for each action
-        network_prediction = self.q_network.forward(input_tensor)
-        # Turn action and reward into a 2D 1x1 tensor as gather and MSELoss take 2D tensors
-        tensor_action_index = torch.tensor([[action]])
-        reward_tensor = torch.tensor([[reward]])
-        # Select for each 1x4 tensor of network predictions the 1x1 tensor related to the action in the transition
-        # Gather is like indexing, 1 is the axis, pick the index in the column given by tensor_action_index
-        # Output will always be the same dimension as the tensor_action_index, like masking
-        predicted_q_for_action = torch.gather(network_prediction, 1, tensor_action_index)
-        return torch.nn.MSELoss()(predicted_q_for_action, reward_tensor)
-
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         # Update target network TODO
@@ -251,6 +246,8 @@ class DQN:
         self.optimiser.step()
         # The absolute error between this bellman value and the current network's value for the same state action pairs in the batch
         td_error = np.abs((tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()).ravel()
+        # if step_number < 2500:
+        print("td", step_number, np.mean(td_error))
 
         # Update the TD errors of the transitions we used
         for index, error in zip(buffer_indices, td_error):
@@ -287,6 +284,15 @@ class DQN:
         # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
         # error will be the last error calculated which is the last one in the buffer
 
+        # if self.avg_td_error_mean:
+        #     self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
+        #
+        # if got_stuck and self.epsilon < 0.1:
+        #     self.epsilon += 0.3
+        #     # self.epsilon = max(0.3, self.epsilon)
+
+        # INCR EPSILON IF GOT STUCK ALWAYS
+
         if self.avg_td_error_mean:
             self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
 
@@ -305,8 +311,6 @@ class DQN:
         # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
 
         # prints the value of the current state we are in, online
-
-
 
     def epsilon_greedy_policy(self, greedy_action, epsilon=False):
         if not epsilon:
