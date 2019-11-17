@@ -75,7 +75,7 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Replay buffer
-        self.buffer_size = self.steps_made_in_exploration
+        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -135,6 +135,33 @@ class Agent:
             # else:
             #     action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
             #     action = np.array(action)
+
+            # TRIAL OF IN BETWEEN RANDOM EPISODE
+            #     # Make small steps during random exploration
+            #     action = np.array(action) / self.step_length * self.random_exploration_step_size
+            #     # if self.num_steps_taken > self.episode_length * 2.5:
+            #     #     self.random_exploration_epsilon -= 1 / self.episode_length
+            #     #     print(self.random_exploration_epsilon)
+            #     #     action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state), self.random_exploration_epsilon)
+            #     # else:
+            #     #     action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
+            #     #     action = np.array(action)
+            #
+            # else:
+            #     self.episode_length = self.actual_episode_length
+            #     # ADD ANOTHER BIT OF RANDOM EXPLORATION AFTER KNOWING GREEDY DIRECTION
+            #     if self.exploration_length + 2 < self.episode_counter < self.exploration_length + 4:
+            #         if self.num_steps_taken % self.episode_length < 50:
+            #             action = self.dqn.return_greedy_action(state)
+            #         else:
+            #             action = self.dqn.test_current_state_actions[:, [2, 3]][
+            #                 np.random.randint(self.dqn.initial_sample_size)]
+            #         action = np.array(action) / self.step_length * self.random_exploration_step_size
+            #     elif self.exploration_length < self.episode_counter < self.exploration_length + 2:
+            #         action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
+            #     else:
+            #         action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
+
 
         else:
             self.episode_length = self.actual_episode_length
@@ -304,8 +331,16 @@ class DQN:
             self.epsilon = 0.2
 
         # # Epsilon linear in episode length
+        if self.episode_counter % 3 == 0:
+            epsilon_increase = 0.009
+        else:
+            epsilon_increase = 0.003
+
         if step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += 0.003
+            self.epsilon += epsilon_increase
+
+        # if step_in_episode > self.steps_increase_epsilon:
+        #     self.epsilon += 0.003
 
 
 
@@ -403,7 +438,7 @@ class DQN:
 
         # Second iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
-        
+
         # DOUBLE Q
         # with torch.no_grad():
         #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions_gaussian)
