@@ -51,7 +51,7 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Set the episode length (you will need to increase this)
-        self.episode_length = 300 # TODO SCALE WITH TIME?
+        self.episode_length = 350 # TODO SCALE WITH TIME?
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -61,10 +61,11 @@ class Agent:
         # Batch size for replay buffer
         self.batch_size = 40
         # Replay buffer
-        self.buffer_size = 1200 # Make sure this is in line with random exploration
+        self.exploration_length = 4
+        self.buffer_size = self.episode_length * self.exploration_length # Make sure this is in line with random exploration
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
-        self.step_length = 0.015  # TODO size of normalisation
+        self.step_length = 0.010  # TODO size of normalisation
         # DQN
         self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
@@ -105,7 +106,7 @@ class Agent:
         # else:
         #     action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
 
-        if self.num_steps_taken < self.episode_length * 4: # SHORT EPISODES EXPLORATORY TODO
+        if self.num_steps_taken < self.episode_length * self.exploration_length: # SHORT EPISODES EXPLORATORY TODO
             action = self.dqn.test_current_state_actions[:, [2, 3]][np.random.randint(self.dqn.initial_sample_size)]
             action = np.array(action)
             # if self.num_steps_taken > self.episode_length * 2.5:
@@ -131,10 +132,10 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 0.15 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 0.25 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 0.2 - distance_to_goal # TODO CHANGE HIGHER?
+            reward = 0.35 - distance_to_goal # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -144,7 +145,7 @@ class Agent:
         self.replay_buffer.transition_td_errors.append(0.0001)
 
         # Train
-        if self.num_steps_taken > self.episode_length * 3.7:
+        if self.num_steps_taken > self.episode_length * (self.exploration_length - 0.2):
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck)
 
         # CROSS ENTROPY METHOD
@@ -161,7 +162,7 @@ class DQN:
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.002)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
@@ -311,12 +312,12 @@ class DQN:
             self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
 
         if got_stuck and self.epsilon < 0.1:
-            self.epsilon += 0.9 * within_episode_scale
+            self.epsilon += 1.3 * within_episode_scale
 
         self.epsilon = min(1, self.epsilon)
         self.epsilon = max(0, self.epsilon)
 
-        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1])
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1], tensor_bellman_current_state_value[-1])
         return loss.item()
          # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
         # COMPUTE THE Qnetwork value instead?
@@ -347,6 +348,10 @@ class DQN:
         self.test_current_state_actions[:, [0, 1]] = torch.tensor(np.tile(state, (self.initial_sample_size, 1))) # ALIGN DATATYPES FROM BEGINNING TODO
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions)
 
+        # # TODO TARGET
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions)
+
         # argsort returns the indices from low to high, pick last 20 to get the 20 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-20:].squeeze()
 
@@ -366,6 +371,10 @@ class DQN:
 
         # Second iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+
+        # # TODO TARGET
+        # with torch.no_grad():
+        #     qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions_gaussian)
 
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-10:].squeeze()
@@ -390,6 +399,10 @@ class DQN:
 
         # Third iteration
         qvalues_tensor = self.q_network.forward(self.test_current_state_actions_gaussian)
+
+        # TODO TARGET
+        with torch.no_grad():
+            qvalues_tensor = self.target_q_network.forward(self.test_current_state_actions_gaussian)
 
         # argsort returns the indices from low to high, pick last 5 to get the 5 largest values
         indices_highest_values = qvalues_tensor.argsort(axis=0)[-5:].squeeze()
