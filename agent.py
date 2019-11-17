@@ -132,10 +132,17 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 0.25 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 0.33 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
             reward = 0.35 - distance_to_goal # TODO CHANGE HIGHER?
+
+        if np.linalg.norm(self.state - next_state) < 0.0002:
+            self.got_stuck = True
+            reward = 0.35 - distance_to_goal  # TODO CHANGE HIGHER?
+        else:
+            self.got_stuck = False
+            reward = 0.35 - distance_to_goal + np.linalg.norm(self.state - next_state) # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
