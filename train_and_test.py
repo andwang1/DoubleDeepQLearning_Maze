@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # Create a random seed, which will define the environment
     random_seed = int(time.time())
-    np.random.seed(15)
+    np.random.seed(18)
 
     # Create a random environment
     environment = Environment(magnification=500)
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     # Determine the time at which training will stop, i.e. in 10 minutes (600 seconds) time
     start_time = time.time()
-    end_time = start_time + 300
+    end_time = start_time + 600
 
     # Train the agent, until the time is up
     while time.time() < end_time:
@@ -49,6 +49,7 @@ if __name__ == "__main__":
     # Test the agent for 100 steps, using its greedy policy
     state = environment.init_state
     has_reached_goal = False
+    is_greedy = True
     for step_num in range(100):
         action = agent.get_greedy_action(state)
         next_state, distance_to_goal = environment.step(state, action)
@@ -58,7 +59,7 @@ if __name__ == "__main__":
             break
         state = next_state
         if display_on:
-            environment.show(state)
+            environment.show(state, is_greedy) # TODO
 
     # Print out the result
     if has_reached_goal:

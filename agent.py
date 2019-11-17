@@ -60,8 +60,8 @@ class Agent:
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
         # Set random exploration episode length
-        self.random_exploration_episode_length = 120
-        self.exploration_length = 18
+        self.random_exploration_episode_length = 120 #TODO 120, CHANGE FOR TESTING
+        self.exploration_length = 38
         self.random_exploration_step_size = 0.01
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
@@ -106,17 +106,20 @@ class Agent:
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
-            if self.episode_counter < 17:
+            # if self.episode_counter < 17:
+            # DOING DOUBLE
+            if self.episode_counter < 35 and self.episode_counter != 17:
+                episode = self.episode_counter % 18
                 if self.num_steps_taken % self.episode_length < 30:
-                    quadrant_start_index = self.episode_counter * 10 + 5
-                    quadrant_end_index = (self.episode_counter + 1) * 10 + 5
+                    quadrant_start_index = episode * 10 + 5
+                    quadrant_end_index = (episode + 1) * 10 + 5
                     # print(quadrant_end_index)
                     action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
                         np.random.randint(10)]
                 else:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
-            elif self.episode_counter == 17:
+            elif self.episode_counter == 17 or self.episode_counter == 35:
                 if self.num_steps_taken % self.episode_length < 30:
                     quadrant_indices = list(range(-5, 5))
                     # print(quadrant_end_index)
@@ -181,10 +184,10 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 1.41 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 1.4 - distance_to_goal**2  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
+            reward = 1.414 - distance_to_goal**2 # TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -204,7 +207,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 1
+    gamma = 1.2
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -240,12 +243,17 @@ class DQN:
 
         # Epsilon
         self.epsilon = 1
-        self.steps_increase_epsilon = 10
+        self.steps_increase_epsilon = 5
 
         # Episode length
         self.episode_length = None
         self.episode_counter = 0
 
+        # is greedy
+        self.is_greedy = False
+        self.free_steps_taken = 0
+        self.greedy_stuck_steps_taken = 0
+        self.epsilon_maxed = False
 
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
@@ -291,7 +299,7 @@ class DQN:
         # increase epsilon later as we go through episodes and hopefully know more about the initial areas
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
-            self.steps_increase_epsilon += 5
+            self.steps_increase_epsilon += 2
 
 
         # Set all the gradients stored in the optimiser to zero.
@@ -328,9 +336,16 @@ class DQN:
         step_in_episode = step_number % self.episode_length
         episode_number = step_number // self.episode_length
 
+        # # Set epsilon at start of episode
+        # if step_in_episode == 1:
+        #     self.epsilon = 0.2
+
         # Set epsilon at start of episode
         if step_in_episode == 1:
-            self.epsilon = 0.2
+            self.epsilon = 0.3
+            self.epsilon_maxed = False
+            # self.epsilon -= self.episode_counter * 0.05
+            # self.epsilon = max(self.epsilon, 0.15)
 
         # # Epsilon linear in episode length
         if self.episode_counter % 3 == 0:
@@ -338,13 +353,68 @@ class DQN:
         else:
             epsilon_increase = 0.003
 
+        # if step_in_episode > self.steps_increase_epsilon:
+        #     if self.is_greedy and got_stuck:
+        #         self.epsilon += epsilon_increase
+        #     elif not self.is_greedy and not got_stuck:
+        #         self.free_steps_taken += 1
+        #         if self.free_steps_taken == 3:
+        #             self.epsilon -= epsilon_increase
+        #             self.free_steps_taken = 0
+
+        # if got_stuck and self.is_greedy:
+        #     self.greedy_stuck_steps_taken += 1
+        #     if self.greedy_stuck_steps_taken == 5:
+        #         self.epsilon += 0.2
+        #         self.greedy_stuck_steps_taken = 0
+        #
+        # elif not self.is_greedy and not got_stuck:
+        #     self.free_steps_taken += 1
+        #     if self.free_steps_taken == 5:
+        #         self.free_steps_taken = 0
+        #         self.epsilon -= 0.2
+        #         # self.epsilon = min(0.3, self.epsilon)
+        #         self.greedy_stuck_steps_taken = 0
+        # elif step_in_episode > self.steps_increase_epsilon:
+        #     self.epsilon += epsilon_increase
+        #
+        # # PURE LINEAR
+        # if step_in_episode > self.steps_increase_epsilon:
+        #     self.epsilon += 0.003
+        # if got_stuck and self.is_greedy:
+        #     self.free_steps_taken = 0
+        #     self.greedy_stuck_steps_taken += 1
+        #     if self.greedy_stuck_steps_taken == 4:
+        #         self.epsilon += 0.1
+        #         self.greedy_stuck_steps_taken = 0
+        # elif not self.is_greedy:
+        #     if got_stuck:
+        #         self.free_steps_taken -= 1
+        #     else:
+        #         self.free_steps_taken += 1
+        #         if self.free_steps_taken == 7:
+        #             self.free_steps_taken = 0
+        #             self.epsilon -= 0.2
+        #             # self.epsilon = min(0.3, self.epsilon)
+        #             self.greedy_stuck_steps_taken = 0
+
+        #PURELIENAR
         if step_in_episode > self.steps_increase_epsilon:
             self.epsilon += epsilon_increase
 
-        # if step_in_episode > self.steps_increase_epsilon:
-        #     self.epsilon += 0.003
+        if self.epsilon >= 1:
+            self.epsilon_maxed = True
 
-
+        if self.epsilon_maxed:
+            if got_stuck:
+                self.free_steps_taken -= 1
+            else:
+                self.free_steps_taken += 1
+                if self.free_steps_taken == 7:
+                    self.free_steps_taken = 0
+                    self.epsilon -= 0.3
+                    # self.epsilon = min(0.3, self.epsilon)
+                    self.greedy_stuck_steps_taken = 0
 
         within_episode_scale = step_in_episode / self.episode_length
 
@@ -356,7 +426,7 @@ class DQN:
         # if step_in_episode == self.episode_length - 10:
         #     self.avg_td_error_at_end = np.mean(td_error[-10:])
         #
-        # # Avg uncertainty over last episode
+        # Avg uncertainty over last episode
         # if step_in_episode == 1:
         #     self.avg_td_error_mean = np.mean(td_error[-self.episode_length:])
         #
@@ -369,20 +439,12 @@ class DQN:
         # # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
         # # error will be the last error calculated which is the last one in the buffer
         #
-        # # if self.avg_td_error_mean:
-        # #     self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
-        # #
-        # # if got_stuck and self.epsilon < 0.1:
-        # #     self.epsilon += 0.3
-        # #     # self.epsilon = max(0.3, self.epsilon)
-        #
-        # # INCR EPSILON IF GOT STUCK ALWAYS
-        #
         # if self.avg_td_error_mean:
         #     self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
+        # #
 
-        if got_stuck and self.epsilon < 0.1:
-            self.epsilon += 0.3
+        # if got_stuck and self.epsilon < 0.1:
+        #     self.epsilon += 0.3
             # self.epsilon = max(0.3, self.epsilon)
 
         self.epsilon = min(1, self.epsilon)
@@ -404,9 +466,11 @@ class DQN:
         print("eps", self.epsilon)
         if np.random.randint(0, 100) in range(int(epsilon * 100)):
             action = self.test_current_state_actions[:, [2, 3]][np.random.randint(self.initial_sample_size)]
+            self.is_greedy = False
             return np.array(action), False # TODO REMOVE IS GREEDY FROM RETURN
         # GREEDY
         else:
+            self.is_greedy = True
             return greedy_action, True # TODO REMOVE IS GREEDY FROM RETURN
 
     def return_greedy_action(self, state: np.ndarray):
