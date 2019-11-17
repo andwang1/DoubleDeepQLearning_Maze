@@ -33,8 +33,8 @@ class Network(torch.nn.Module):
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
-        self.layer_2 = torch.nn.Linear(in_features=200, out_features=150)
-        self.output_layer = torch.nn.Linear(in_features=150, out_features=output_dimension)
+        self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
+        self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
