@@ -35,7 +35,7 @@ if __name__ == "__main__":
         if agent.has_finished_episode():
             state = environment.init_state
         # Get the state and action from the agent
-        action = agent.get_next_action(state)
+        action, is_greedy = agent.get_next_action(state) # TODO REMOVE IS GREEDY FROM RETURN
         # Get the next state and the distance to the goal
         next_state, distance_to_goal = environment.step(state, action)
         # Return this to the agent
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         state = next_state
         # Optionally, show the environment
         if display_on:
-            environment.show(state)
+            environment.show(state, is_greedy) # TODO REMOVE IS GREEDY FROM RETURN
 
     # Test the agent for 100 steps, using its greedy policy
     state = environment.init_state

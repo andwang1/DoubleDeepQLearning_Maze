@@ -61,13 +61,14 @@ class Agent:
         self.episode_counter = 0
         # Set random exploration episode length
         self.random_exploration_episode_length = 120
-        self.exploration_length = 20
+        self.exploration_length = 18
         self.random_exploration_step_size = 0.01
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
         # Set number of steps at which to start training
         steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
-        self.training_threshhold = int(self.steps_made_in_exploration - steps_needed_with_batch_to_train * 2 - 40)
+        # every sample can be trained on twice
+        self.training_threshhold = int(self.steps_made_in_exploration - steps_needed_with_batch_to_train * 2)
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -99,28 +100,29 @@ class Agent:
             return False
 
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
-    def get_next_action(self, state: np.ndarray):
+    def get_next_action(self, state: np.ndarray):   # TODO REMOVE IS GREEDY FROM RETURN
         # RANDOM EXPLORATION IN BEGINNING
+        is_greedy = False # TODO REMOVE IS GREEDY FROM RETURN
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
-            if self.episode_counter < 18:
+            if self.episode_counter < 17:
                 if self.num_steps_taken % self.episode_length < 30:
-                    quadrant_start_index = self.episode_counter * 10
-                    quadrant_end_index = (self.episode_counter + 1) * 10
+                    quadrant_start_index = self.episode_counter * 10 + 5
+                    quadrant_end_index = (self.episode_counter + 1) * 10 + 5
                     # print(quadrant_end_index)
                     action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
                         np.random.randint(10)]
                 else:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
-            elif self.episode_counter == 18:
+            elif self.episode_counter == 17:
                 if self.num_steps_taken % self.episode_length < 30:
-                    quadrant_indices = list(range(-10, 11))
+                    quadrant_indices = list(range(-5, 5))
                     # print(quadrant_end_index)
                     # HERE SLICE INSTEAD OF INDEX TO KEEP DIMENSINOS
                     action = self.dqn.test_current_state_actions[quadrant_indices, 2: 4][
-                        np.random.randint(len(quadrant_indices))]
+                        np.random.randint(10)]
                 else:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
@@ -165,7 +167,7 @@ class Agent:
 
         else:
             self.episode_length = self.actual_episode_length
-            action = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state))
+            action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
 
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
@@ -173,13 +175,13 @@ class Agent:
         self.state = state # NP ARRAY
         # Store the action; this will be used later, when storing the transition
         self.action = list(action)
-        return action # return here as nparray
+        return action, is_greedy # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 1.40 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 1.41 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
             reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
@@ -395,17 +397,17 @@ class DQN:
 
         # prints the value of the current state we are in, online
 
-    def epsilon_greedy_policy(self, greedy_action, epsilon=False):
+    def epsilon_greedy_policy(self, greedy_action, epsilon=False): # TODO REMOVE IS GREEDY FROM RETURN
         if not epsilon:
             epsilon = self.epsilon
         # RANDOM
         print("eps", self.epsilon)
         if np.random.randint(0, 100) in range(int(epsilon * 100)):
             action = self.test_current_state_actions[:, [2, 3]][np.random.randint(self.initial_sample_size)]
-            return np.array(action)
+            return np.array(action), False # TODO REMOVE IS GREEDY FROM RETURN
         # GREEDY
         else:
-            return greedy_action
+            return greedy_action, True # TODO REMOVE IS GREEDY FROM RETURN
 
     def return_greedy_action(self, state: np.ndarray):
         # TODO EFFICIENCY APPEND VS STACK VS CONCAT, list append of lists vs numpy test efficiencey
