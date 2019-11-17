@@ -56,8 +56,8 @@ class Agent:
         self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         # Set random exploration episode length
-        self.random_exploration_episode_length = 500
-        self.exploration_length = 5
+        self.random_exploration_episode_length = 450
+        self.exploration_length = 6
         self.random_exploration_step_size = 0.01
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
@@ -71,7 +71,7 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Replay buffer
-        self.buffer_size = self.training_threshhold
+        self.buffer_size = self.steps_made_in_exploration
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -125,7 +125,7 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = 1.408 - distance_to_goal  # TODO CHANGE HIGHER?
+            reward = 1.40 - distance_to_goal  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
             reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
@@ -154,6 +154,7 @@ class DQN:
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
+        self.steps_copy_target = 60
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
@@ -183,9 +184,12 @@ class DQN:
 
         # Epsilon
         self.epsilon = 1
+        self.steps_increase_epsilon = 10
 
         # Episode length
         self.episode_length = None
+        self.episode_counter = 0
+
 
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
@@ -225,8 +229,14 @@ class DQN:
     # Function that is called whenever we want to train the Q-network. Each call to this function takes in a transition tuple containing the data we use to update the Q-network.
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         # Update target network TODO
-        if step_number % 60 == 0:
+        if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
+
+        # increase epsilon later as we go through episodes and hopefully know more about the initial areas
+        if step_number % self.episode_length == 0:
+            self.episode_counter += 1
+            self.steps_increase_epsilon += 5
+
 
         # Set all the gradients stored in the optimiser to zero.
         self.optimiser.zero_grad()
@@ -246,55 +256,66 @@ class DQN:
         self.optimiser.step()
         # The absolute error between this bellman value and the current network's value for the same state action pairs in the batch
         td_error = np.abs((tensor_bellman_current_state_value - tensor_current_state_action_value).detach().numpy()).ravel()
+
+        # TRY NEW EPSILON INITIALISATION BASED ON RANDOM EXPLORATION EPISODES
+        # if self.record_epsilon:
+        #     if step_number %
+
         # if step_number < 2500:
         print("td", step_number, np.mean(td_error))
+        print(self.episode_counter)
 
         # Update the TD errors of the transitions we used
         for index, error in zip(buffer_indices, td_error):
             self.replay_buffer.transition_td_errors[index] = error
 
-        # # Epsilon linear
-        # self.epsilon -= 0.001
-
         step_in_episode = step_number % self.episode_length
         episode_number = step_number // self.episode_length
-
-        within_episode_scale = step_in_episode / self.episode_length
-
-        # Avg uncertainty at start of this episode
-        if step_in_episode == 10:
-            self.avg_td_error_at_start = np.mean(td_error[-10:])
-
-        # Avg uncertainty at end of the episode
-        if step_in_episode == self.episode_length - 10:
-            self.avg_td_error_at_end = np.mean(td_error[-10:])
-
-        # Avg uncertainty over last episode
-        if step_in_episode == 1:
-            self.avg_td_error_mean = np.mean(td_error[-self.episode_length:])
-
-        # Median uncertainty over last episode
-        if step_in_episode == 1:
-            self.avg_td_error_median = np.median(td_error[-self.episode_length:])
 
         # Set epsilon at start of episode
         if step_in_episode == 1:
             self.epsilon = 0.2
-        # make the epsilon increase scale with total step size
-        # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
-        # error will be the last error calculated which is the last one in the buffer
 
+        # # Epsilon linear in episode length
+        if step_in_episode > self.steps_increase_epsilon:
+            self.epsilon += 0.003
+
+
+
+        within_episode_scale = step_in_episode / self.episode_length
+
+        # # Avg uncertainty at start of this episode
+        # if step_in_episode == 10:
+        #     self.avg_td_error_at_start = np.mean(td_error[-10:])
+        #
+        # # Avg uncertainty at end of the episode
+        # if step_in_episode == self.episode_length - 10:
+        #     self.avg_td_error_at_end = np.mean(td_error[-10:])
+        #
+        # # Avg uncertainty over last episode
+        # if step_in_episode == 1:
+        #     self.avg_td_error_mean = np.mean(td_error[-self.episode_length:])
+        #
+        # # Median uncertainty over last episode
+        # if step_in_episode == 1:
+        #     self.avg_td_error_median = np.median(td_error[-self.episode_length:])
+        #
+        #
+        # # make the epsilon increase scale with total step size
+        # # Make epsilon increase if growing uncertainty compared to start of episode whwer we are more greedy and should be precise
+        # # error will be the last error calculated which is the last one in the buffer
+        #
+        # # if self.avg_td_error_mean:
+        # #     self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
+        # #
+        # # if got_stuck and self.epsilon < 0.1:
+        # #     self.epsilon += 0.3
+        # #     # self.epsilon = max(0.3, self.epsilon)
+        #
+        # # INCR EPSILON IF GOT STUCK ALWAYS
+        #
         # if self.avg_td_error_mean:
         #     self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
-        #
-        # if got_stuck and self.epsilon < 0.1:
-        #     self.epsilon += 0.3
-        #     # self.epsilon = max(0.3, self.epsilon)
-
-        # INCR EPSILON IF GOT STUCK ALWAYS
-
-        if self.avg_td_error_mean:
-            self.epsilon += 0.005 * (error - self.avg_td_error_mean) / self.avg_td_error_mean
 
         if got_stuck and self.epsilon < 0.1:
             self.epsilon += 0.3
@@ -487,7 +508,7 @@ class ReplayBuffer:
 
 
         # Adding a min probability constant to make sure transitions with small errors are still selected
-        min_probability_constant = 0.05
+        min_probability_constant = 0.03
 
         # print(self.transition_td_errors)
         # print(len(self.transition_td_errors))
