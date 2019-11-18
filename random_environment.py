@@ -104,6 +104,7 @@ class Environment:
         self.got_stuck = False
         if np.linalg.norm(action) > 0.02:
             next_state = state
+            print("NORM")
             self.got_stuck = True
         else:
             # Determine what the new state would be if the agent could move there
