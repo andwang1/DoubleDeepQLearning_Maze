@@ -64,15 +64,15 @@ class Agent:
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 200 #TODO 120, CHANGE FOR TESTING
-        self.exploration_length = 14
-        self.random_exploration_step_size = 0.02
+        self.random_exploration_episode_length = 300 #TODO 120, CHANGE FOR TESTING
+        self.exploration_length = 8
+        self.random_exploration_step_size = 0.015
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
         # Set number of steps at which to start training
         steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
         # every sample can be trained on twice
-        self.training_threshhold = self.random_exploration_episode_length * 3
+        self.training_threshhold = int(self.steps_made_in_exploration - steps_needed_with_batch_to_train * 2)
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -109,16 +109,7 @@ class Agent:
                                  [0, 0.02],
                                  [-0.01414, 0.01414],
                                  ])
-        #
-        # 4 actions
-        # self.actions = np.array([[0.02, 0],
-        #                          [0.01414, 0.01414],
-                                 # [0, 0.02],
-                                 # [-0.01414, 0.01414],
-                                 # [-0.02, 0],
-                                 # [-0.01414, -0.01414],
-                                 # [0, -0.02]])
-                                 # [0.01414, -0.01414]])
+
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
@@ -193,6 +184,8 @@ class Agent:
             reward = 2
         elif distance_to_goal < 0.7:
             reward = 1
+        elif distance_to_goal < 0.8:
+            reward = 0.3
         else:
             reward = 0
 
@@ -220,8 +213,8 @@ class DQN:
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         # 8 actions
-        self.q_network = Network(input_dimension=2, output_dimension=8)
-        self.target_q_network = Network(input_dimension=2, output_dimension=8)
+        self.q_network = Network(input_dimension=4, output_dimension=1)
+        self.target_q_network = Network(input_dimension=4, output_dimension=1)
         # 4 dimensions
         # self.q_network = Network(input_dimension=2, output_dimension=4)
         # self.target_q_network = Network(input_dimension=2, output_dimension=4)
@@ -260,22 +253,49 @@ class DQN:
         self.start_epsilon = 1
         self.standard_epsilon_delta = False
 
+        self.test_actions = None
+        self.create_sample_test_steps()
+
+        self.actions = torch.tensor([[-0.02, 0],
+                                 [-0.01414, -0.01414],
+                                 [0, -0.02],
+                                 [0.01414, -0.01414],
+                                 [0.02, 0],
+                                 [0.01414, 0.01414],
+                                 [0, 0.02],
+                                 [-0.01414, 0.01414],
+                                 ])
+
+        self.state_actions = torch.tensor(np.empty((8,4)))
+        self.state_actions[:, [2, 3]] = self.actions
+
+    def create_sample_test_steps(self):
+        radians = np.deg2rad(np.array(np.arange(-180, 180, 2)))
+        x_steps = np.cos(radians) * self.step_length
+        y_steps = np.sin(radians) * self.step_length
+
+        self.test_actions = np.empty((len(radians), 2))
+        self.test_actions[:, 0] = x_steps
+        self.test_actions[:, 1] = y_steps
+
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
             self.q_network.load_state_dict(other_dqn.q_network.state_dict())
         else:
             self.target_q_network.load_state_dict(self.q_network.state_dict())
 
-
-    def epsilon_greedy_policy(self, greedy_action):
-        print("EPS", self.epsilon)
-        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
-            # 8 actions
-            # return np.random.randint(0, 8), False
-            # 4 actions
-            return np.random.randint(0, 4), False
+    def epsilon_greedy_policy(self, greedy_action, epsilon=False):  # TODO REMOVE IS GREEDY FROM RETURN
+        # RANDOM
+        print("eps", self.epsilon)
+        if np.random.randint(0, 100) in range(int(epsilon * 100)):
+            action = self.test_actions[np.random.randint(180)]
+            self.is_greedy = False
+            return np.array(action), False  # TODO REMOVE IS GREEDY FROM RETURN
+        # GREEDY
         else:
-            return greedy_action, True
+            self.is_greedy = True
+            return greedy_action, True  # TODO REMOVE IS GREEDY FROM RETURN
+
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         if step_number % self.steps_copy_target == 0:
@@ -288,10 +308,11 @@ class DQN:
             self.steps_increase_epsilon += 5
 
         self.optimiser.zero_grad()
-        tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
-        # Network predictions is a *x4 tensor of 4 state value predictions per row, one for each action
-        network_predictions = self.q_network.forward(tensor_current_states)
-        tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions.long())
+        tensor_state_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
+        # Network predictions is a *x1 tensor of the current state action values in the batch
+        tensor_current_state_action_value = self.q_network.forward(tensor_state_actions)
+
+
 
         # Given the next state, we want to find the greedy action in the next state and use it to compute the next state's value
         # This uses the target network
@@ -363,17 +384,16 @@ class DQN:
         return loss.item()
 
     def return_greedy_action(self, current_state):
-        input_tensor = torch.tensor(current_state).float().unsqueeze(0)
-        network_prediction = self.q_network.forward(input_tensor)
+        self.state_actions[:, [0, 1]] = torch.tensor(np.tile(current_state, reps=(8,1)))
+        # input_tensor = torch.tensor(current_state).float().unsqueeze(0)
+
+        network_prediction = self.q_network.forward(self.state_actions)
         return int(network_prediction.argmax())
 
-    def return_greedy_actions_tensor(self, tensor_states):
-        tensor_network_predictions = self.q_network.forward(tensor_states)
-        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1)
-        return tensor_greedy_actions
 
     def return_next_state_values_tensor(self, tensor_next_states):
         # Double Q
+
         tensor_network_predictions = self.q_network.forward(tensor_next_states)
         predictions_np_array = tensor_network_predictions.detach().numpy()
         greedy_actions = np.argmax(predictions_np_array, axis=1) # TODO
@@ -415,8 +435,7 @@ class ReplayBuffer:
         weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
                     sum(self.transition_td_errors) + min_probability_constant * self.length)
 
-        current_states = []
-        actions = []
+        state_actions = []
         rewards = []
         next_states = []
 
@@ -428,12 +447,11 @@ class ReplayBuffer:
         # this because append is slow and creates a copy
         indices[-1] = self.length - 1
         for index in indices:
-            current_states.append(self.replay_buffer[index][0])  # 1x2
-            actions.append([self.replay_buffer[index][1]])  # 1x1
-            rewards.append([self.replay_buffer[index][2]])  # 1x1
-            next_states.append(self.replay_buffer[index][3])  # 1x2
-        return torch.tensor(current_states).float(), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
-            next_states).float(), indices  # MSE needs float values, so cast rewards to floats
+            transition = self.replay_buffer[index]
+            state_actions.append(transition[0])  # 1x4 LIST
+            rewards.append([transition[1]])  # 1x1
+            next_states.append(transition[2])  # 1x2
+        return torch.tensor(state_actions), torch.tensor(rewards).float(), torch.tensor(next_states), indices
 
 
 if __name__ == '__main__':
