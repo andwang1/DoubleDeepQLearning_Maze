@@ -209,6 +209,8 @@ class Agent:
             reward = 2
         elif distance_to_goal < 0.7:
             reward = 1
+        elif distance_to_goal < 0.8:
+            reward = 0.3
         else:
             reward = 0
 
