@@ -60,8 +60,8 @@ class Agent:
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
         # Set random exploration episode length
-        self.random_exploration_episode_length = 100 #TODO 120, CHANGE FOR TESTING
-        self.exploration_length = 19
+        self.random_exploration_episode_length = 160 #TODO 120, CHANGE FOR TESTING
+        self.exploration_length = 18
         self.random_exploration_step_size = 0.015
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
@@ -84,6 +84,7 @@ class Agent:
         self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
         self.dqn.episode_length = self.episode_length
+        self.dqn.steps_copy_target = self.episode_length
         # Share access to the same replay_buffer
         self.dqn.replay_buffer = self.replay_buffer
 
@@ -106,17 +107,22 @@ class Agent:
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
-            if self.episode_counter < 17:
+            if self.episode_counter < 19:
             # DOING DOUBLE
             # if self.episode_counter < 35 and self.episode_counter != 17:
-                episode = self.episode_counter % 18
-                if self.num_steps_taken % self.episode_length < 15:
-                    quadrant_start_index = episode * 10 + 5
-                    quadrant_end_index = (episode + 1) * 10 + 5
+                episode = self.episode_counter % 19
+                if self.num_steps_taken % self.episode_length < 20:
+                    quadrant_start_index = episode * 5 + 45
+                    # quadrant_end_index = (episode + 1) * 5 + 45
                     # print(quadrant_end_index)
-                    action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
-                        np.random.randint(10)]
+                    # action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
+                    #     np.random.randint(5)]
+                    action = self.dqn.test_current_state_actions[quadrant_start_index, 2:4]
                 else:
+                    # RIGHT DIRECTION
+                    # action = self.dqn.test_current_state_actions[40:140, [2, 3]][
+                    #     np.random.randint(100)]
+                    # FULLY RANDOM
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
             elif self.episode_counter == 17:
@@ -127,7 +133,7 @@ class Agent:
                     # print(quadrant_end_index)
                     # HERE SLICE INSTEAD OF INDEX TO KEEP DIMENSINOS
                     action = self.dqn.test_current_state_actions[quadrant_indices, 2: 4][
-                        np.random.randint(10)]
+                        np.random.randint(5)]
                 else:
                     action = self.dqn.test_current_state_actions[:, [2, 3]][
                         np.random.randint(self.dqn.initial_sample_size)]
@@ -171,6 +177,11 @@ class Agent:
 
 
         else:
+            if self.num_steps_taken == self.steps_made_in_exploration:
+                print("TRAIN")
+                for _ in 200:
+                    self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
+                                               self.got_stuck)
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
 
@@ -184,12 +195,41 @@ class Agent:
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
+        # if np.linalg.norm(self.state - next_state) < 0.0002:
+        #     self.got_stuck = True
+        #     # reward = (1.414 - distance_to_goal) / 10 * -.8  # TODO CHANGE HIGHER?
+        #     reward = 0
+        # else:
+        #     self.got_stuck = False
+        #     reward = (1.414 - distance_to_goal) / 10# TODO CHANGE HIGHER?
+
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = (1.414 - distance_to_goal) / 10 * -.8  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 1.414 - distance_to_goal / 10# TODO CHANGE HIGHER?
+        if distance_to_goal < 0.03:
+            reward = 100
+        elif distance_to_goal < 0.05:
+            reward = 20
+        elif distance_to_goal < 0.1:
+            reward = 10
+        elif distance_to_goal < 0.3:
+            reward = 5
+        elif distance_to_goal < 0.4:
+            reward = 4
+        elif distance_to_goal < 0.5:
+            reward = 3
+        elif distance_to_goal < 0.7:
+            reward = 2
+        #     reward = 0.6
+        else:
+            reward = 0
+
+            # reward = (1.414 - distance_to_goal) / 10 * -.8  # TODO CHANGE HIGHER?
+            # reward = 0
+        # else:
+        #     self.got_stuck = False
+            # reward = (1.414 - distance_to_goal) / 10# TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -209,13 +249,13 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 1.1
+    gamma = 1
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
         self.q_network = Network(input_dimension=4, output_dimension=1)
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
-        self.steps_copy_target = 60
+
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.003)
 
@@ -249,6 +289,7 @@ class DQN:
 
         # Episode length
         self.episode_length = None
+        self.steps_copy_target = self.episode_length
         self.episode_counter = 0
 
         # is greedy
@@ -260,7 +301,7 @@ class DQN:
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
     def create_sample_test_steps(self):
-        radians = np.deg2rad(np.array(np.arange(0, 360, self.angles_between_actions)))
+        radians = np.deg2rad(np.array(np.arange(-180, 180, self.angles_between_actions)))
         x_steps = np.cos(radians) * self.step_length
         y_steps = np.sin(radians) * self.step_length
 
@@ -654,7 +695,7 @@ class ReplayBuffer:
 
 
         # Adding a min probability constant to make sure transitions with small errors are still selected
-        min_probability_constant = 0.03
+        min_probability_constant = 0
 
         # print(self.transition_td_errors)
         # print(len(self.transition_td_errors))
@@ -662,6 +703,9 @@ class ReplayBuffer:
         # Normalise weights
         weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
                     sum(self.transition_td_errors) + min_probability_constant * self.length)
+
+        # UNIFORM
+        # weights = np.ones(self.length) / self.length
         # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (sum_of_errors + min_probability_constant * self.length)
         # print(weights)
         # weights =

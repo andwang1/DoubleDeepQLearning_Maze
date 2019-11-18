@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # Create a random seed, which will define the environment
     random_seed = int(time.time())
-    np.random.seed(random_seed)
+    np.random.seed(15)
 
     # Create a random environment
     environment = Environment(magnification=500)
@@ -50,6 +50,8 @@ if __name__ == "__main__":
     state = environment.init_state
     has_reached_goal = False
     is_greedy = True
+    print("GREEDY COMING UP")
+    time.sleep(5)
     for step_num in range(100):
         action = agent.get_greedy_action(state)
         next_state, distance_to_goal = environment.step(state, action)
@@ -58,6 +60,7 @@ if __name__ == "__main__":
             has_reached_goal
             break
         state = next_state
+        time.sleep(0.1)
         if display_on:
             environment.show(state, is_greedy) # TODO
 
