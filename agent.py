@@ -77,7 +77,7 @@ class Agent:
         self.action = None
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length  # 400000
+        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length + 800 # 400000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -244,7 +244,7 @@ class DQN:
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
 
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.003)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
@@ -375,6 +375,16 @@ class DQN:
         if step_in_episode == 1:
             self.epsilon = 0.2
             self.epsilon_maxed = False
+
+            # LEARNING RATE UPDATE TODO with starting rate at 0.003
+            if self.episode_counter == 4:
+                self.optimiser.param_groups[0]["lr"] = 0.002
+            elif self.episode_counter == 14:
+                self.optimiser.param_groups[0]["lr"] = 0.0005
+            # elif self.episode_counter == 17:
+            #     dqn.optimiser.param_groups[0]["lr"] = 0.0005
+
+
             # self.epsilon -= self.episode_counter * 0.05
             # self.epsilon = max(self.epsilon, 0.15)
 
@@ -721,10 +731,5 @@ class ReplayBuffer:
 
 
 if __name__ == '__main__':
-    dqn = DQN()
-    dqn.create_sample_test_steps()
-    print(dqn.test_current_state_actions)
-    print(len(dqn.test_current_state_actions))
-    print(len(dqn.test_next_state_actions))
-    print(dqn.test_next_state_actions.shape)
-    print(np.linalg.norm(dqn.test_next_state_actions[:,2:4], axis=1))
+    dqn = DQN(10, 10, replay_buffer_size=10)
+    print(dqn.optimiser.param_groups[0]["lr"])
