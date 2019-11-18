@@ -56,19 +56,19 @@ class Agent:
         # Replay buffer batch size
         self.batch_size = 40
         # Set the episode length (you will need to increase this)
-        self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
         # Set random exploration episode length
-        self.random_exploration_episode_length = 240 #TODO 120, CHANGE FOR TESTING
+        self.random_exploration_episode_length = 100 #TODO 120, CHANGE FOR TESTING
         self.exploration_length = 19
         self.random_exploration_step_size = 0.015
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
         # Set number of steps at which to start training
-        steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size / 2
+        steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
         # every sample can be trained on twice
-        self.training_threshhold = int(self.steps_made_in_exploration / 2 - steps_needed_with_batch_to_train * 2)
+        self.training_threshhold = int(self.steps_made_in_exploration - steps_needed_with_batch_to_train * 2)
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -76,7 +76,7 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Replay buffer
-        self.buffer_size =  int(self.steps_made_in_exploration / 2)
+        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -110,7 +110,7 @@ class Agent:
             # DOING DOUBLE
             # if self.episode_counter < 35 and self.episode_counter != 17:
                 episode = self.episode_counter % 18
-                if self.num_steps_taken % self.episode_length < 10:
+                if self.num_steps_taken % self.episode_length < 15:
                     quadrant_start_index = episode * 10 + 5
                     quadrant_end_index = (episode + 1) * 10 + 5
                     # print(quadrant_end_index)
@@ -122,7 +122,7 @@ class Agent:
             elif self.episode_counter == 17:
             # DOING DOUBLE
             # elif self.episode_counter == 17 or self.episode_counter == 35:
-                if self.num_steps_taken % self.episode_length < 10:
+                if self.num_steps_taken % self.episode_length < 15:
                     quadrant_indices = list(range(-5, 5))
                     # print(quadrant_end_index)
                     # HERE SLICE INSTEAD OF INDEX TO KEEP DIMENSINOS
@@ -186,10 +186,10 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
-            reward = (1.414 + distance_to_goal) * -0.3  # TODO CHANGE HIGHER?
+            reward = (1.414 - distance_to_goal) / 10 * -.8  # TODO CHANGE HIGHER?
         else:
             self.got_stuck = False
-            reward = 1.414 - distance_to_goal # TODO CHANGE HIGHER?
+            reward = 1.414 - distance_to_goal / 10# TODO CHANGE HIGHER?
 
         # types (list, np.float64, list)
         transition = (list(self.state) + self.action, reward, list(next_state))
@@ -209,7 +209,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 1.2
+    gamma = 1.1
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -344,16 +344,13 @@ class DQN:
 
         # Set epsilon at start of episode
         if step_in_episode == 1:
-            self.epsilon = 0.3
+            self.epsilon = 0.2
             self.epsilon_maxed = False
             # self.epsilon -= self.episode_counter * 0.05
             # self.epsilon = max(self.epsilon, 0.15)
 
         # # Epsilon linear in episode length
-        if self.episode_counter % 3 == 0:
-            epsilon_increase = 0.009
-        else:
-            epsilon_increase = 0.003
+        epsilon_increase = 0.003
 
         # if step_in_episode > self.steps_increase_epsilon:
         #     if self.is_greedy and got_stuck:
