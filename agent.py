@@ -60,8 +60,8 @@ class Agent:
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
         # Set random exploration episode length
-        self.random_exploration_episode_length = 140 #TODO 120, CHANGE FOR TESTING
-        self.exploration_length = 18
+        self.random_exploration_episode_length = 160 #TODO 120, CHANGE FOR TESTING
+        self.exploration_length = 10
         self.random_exploration_step_size = 0.015
         self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
 
@@ -76,7 +76,8 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Replay buffer
-        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
+        # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
+        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length # 400000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -107,12 +108,12 @@ class Agent:
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             # EXPLORATION IN 4 DIRECTIONS AT START OF EPISODE
-            if self.episode_counter < 17:
+            if self.episode_counter < 9:
             # DOING DOUBLE
             # if self.episode_counter < 35 and self.episode_counter != 17:
                 episode = self.episode_counter % 19
-                if self.num_steps_taken % self.episode_length < 30 and not self.got_stuck:
-                    quadrant_start_index = episode * 5 + 45
+                if self.num_steps_taken % self.episode_length < 50 and not self.got_stuck:
+                    quadrant_start_index = episode * 10 + 45
                     # quadrant_end_index = (episode + 1) * 5 + 45
                     # print(quadrant_end_index)
                     # action = self.dqn.test_current_state_actions[quadrant_start_index:quadrant_end_index, [2, 3]][
@@ -280,6 +281,9 @@ class DQN:
         self.greedy_stuck_steps_taken = 0
         self.epsilon_maxed = False
 
+        # # Epsilon linear in episode length
+        self.epsilon_increase = 0.003
+
     # Creates an empty array with four columns, last 2 will be actions, split in angles
     # Input, how many degrees will be between each angle, i.e. 1, will give 360 actions
     def create_sample_test_steps(self):
@@ -323,6 +327,7 @@ class DQN:
 
         # increase epsilon later as we go through episodes and hopefully know more about the initial areas
         if step_number % self.episode_length == 0:
+            self.epsilon_increase = 0.003
             self.episode_counter += 1
             self.steps_increase_epsilon += 2
 
@@ -372,9 +377,8 @@ class DQN:
             # self.epsilon -= self.episode_counter * 0.05
             # self.epsilon = max(self.epsilon, 0.15)
 
-        # # Epsilon linear in episode length
-        epsilon_increase = 0.003 * self.episode_counter
-        epsilon_increase = max(0.01, self.episode_counter)
+
+
 
         # if step_in_episode > self.steps_increase_epsilon:
         #     if self.is_greedy and got_stuck:
@@ -423,7 +427,12 @@ class DQN:
 
         #PURELIENAR
         if step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += epsilon_increase
+            self.epsilon += self.epsilon_increase
+
+        if self.episode_length - step_in_episode < 10:
+            self.epsilon += 0.1
+        if self.episode_length - step_in_episode < 4:
+            self.epsilon = 0.2
 
         # if self.epsilon >= 1:
         #     self.epsilon_maxed = True
