@@ -377,12 +377,12 @@ class DQN:
             self.epsilon_maxed = False
 
             # LEARNING RATE UPDATE TODO with starting rate at 0.003
-            if self.episode_counter == 12:
+            if self.episode_counter == 10:
                 self.optimiser.param_groups[0]["lr"] = 0.002
-            elif self.episode_counter == 14:
+            elif self.episode_counter == 12:
                 self.optimiser.param_groups[0]["lr"] = 0.001
-            # elif self.episode_counter == 17:
-            #     dqn.optimiser.param_groups[0]["lr"] = 0.0005
+            elif self.episode_counter == 17:
+                self.optimiser.param_groups[0]["lr"] = 0.0005
 
 
             # self.epsilon -= self.episode_counter * 0.05
