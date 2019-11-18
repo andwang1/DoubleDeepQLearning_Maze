@@ -99,14 +99,25 @@ class Agent:
 
         self.got_stuck = False
 
+        # 8 actions
+        # self.actions = np.array([[0.02, 0],
+        #                          [0.01414, 0.01414],
+        #                          [0, 0.02],
+        #                          [-0.01414, 0.01414],
+        #                          [-0.02, 0],
+        #                          [-0.01414, -0.01414],
+        #                          [0, -0.02],
+        #                          [0.01414, -0.01414]])
+
+        # 4 actions
         self.actions = np.array([[0.02, 0],
-                                 [0.01414, 0.01414],
+                                 # [0.01414, 0.01414],
                                  [0, 0.02],
-                                 [-0.01414, 0.01414],
+                                 # [-0.01414, 0.01414],
                                  [-0.02, 0],
-                                 [-0.01414, -0.01414],
-                                 [0, -0.02],
-                                 [0.01414, -0.01414]])
+                                 # [-0.01414, -0.01414],
+                                 [0, -0.02]])
+                                 # [0.01414, -0.01414]])
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
@@ -124,14 +135,23 @@ class Agent:
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             if self.episode_counter < 9:
-                direction_count = self.episode_counter % 8
+                # 8 actions
+                # direction_count = self.episode_counter % 8
+                # 4 actions
+                direction_count = self.episode_counter % 4
                 if self.num_steps_taken % self.episode_length < 50 and not self.got_stuck and not self.fully_random:
                     action = direction_count
                     self.fully_random = True
                 else:
-                    action = np.random.randint(8)
+                    # 8 actions
+                    # action = np.random.randint(8)
+                    # 4 actions
+                    action = np.random.randint(4)
             else:
-                action = np.random.randint(8)
+                # 8 actions
+                # action = np.random.randint(8)
+                # 4 actions
+                action = np.random.randint(4)
         else:
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
@@ -152,7 +172,9 @@ class Agent:
             self.got_stuck = True
         else:
             self.got_stuck = False
-        if distance_to_goal < 0.03:
+        if distance_to_goal < 0.01:
+            reward = 200
+        elif distance_to_goal < 0.03:
             reward = 100
         elif distance_to_goal < 0.05:
             reward = 20
@@ -169,7 +191,9 @@ class Agent:
         elif distance_to_goal < 0.6:
             reward = 2
         elif distance_to_goal < 0.7:
-            reward = 0.5
+            reward = 1
+        elif distance_to_goal < 0.8:
+            reward = 0.3
         else:
             reward = 0
 
@@ -196,11 +220,15 @@ class DQN:
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
-        self.q_network = Network(input_dimension=2, output_dimension=8)
-        self.target_q_network = Network(input_dimension=2, output_dimension=8)
+        # 8 actions
+        # self.q_network = Network(input_dimension=2, output_dimension=8)
+        # self.target_q_network = Network(input_dimension=2, output_dimension=8)
+        # 4 dimensions
+        self.q_network = Network(input_dimension=2, output_dimension=4)
+        self.target_q_network = Network(input_dimension=2, output_dimension=4)
 
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.0005)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
@@ -243,7 +271,10 @@ class DQN:
     def epsilon_greedy_policy(self, greedy_action):
         print("EPS", self.epsilon)
         if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
-            return np.random.randint(0, 8), False
+            # 8 actions
+            # return np.random.randint(0, 8), False
+            # 4 actions
+            return np.random.randint(0, 4), False
         else:
             return greedy_action, True
 
