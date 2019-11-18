@@ -77,7 +77,7 @@ class Agent:
         self.action = None
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length # 400000
+        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length  # 400000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.015  # TODO size of normalisation
@@ -197,14 +197,18 @@ class Agent:
             reward = 20
         elif distance_to_goal < 0.1:
             reward = 10
+        elif distance_to_goal < 0.1:
+            reward = 7
         elif distance_to_goal < 0.3:
             reward = 5
         elif distance_to_goal < 0.4:
             reward = 4
         elif distance_to_goal < 0.5:
             reward = 3
-        elif distance_to_goal < 0.7:
+        elif distance_to_goal < 0.6:
             reward = 2
+        elif distance_to_goal < 0.7:
+            reward = 1
         else:
             reward = 0
 
@@ -240,7 +244,7 @@ class DQN:
         self.target_q_network = Network(input_dimension=4, output_dimension=1)
 
         # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
-        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.003)
+        self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
 
         # Step size for each step
         self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
@@ -365,10 +369,7 @@ class DQN:
 
         step_in_episode = step_number % self.episode_length
         episode_number = step_number // self.episode_length
-
-        # # Set epsilon at start of episode
-        # if step_in_episode == 1:
-        #     self.epsilon = 0.2
+        within_episode_scale = step_in_episode / self.episode_length
 
         # Set epsilon at start of episode
         if step_in_episode == 1:
@@ -377,8 +378,23 @@ class DQN:
             # self.epsilon -= self.episode_counter * 0.05
             # self.epsilon = max(self.epsilon, 0.15)
 
+        #PURELIENAR
+        if step_in_episode > self.steps_increase_epsilon:
+            self.epsilon += self.epsilon_increase
 
+        if self.episode_length - step_in_episode < 20:
+            self.epsilon += 0.1
+        if self.episode_length - step_in_episode < 6:
+            self.epsilon = 0.2
 
+        self.epsilon = min(1, self.epsilon)
+        self.epsilon = max(0, self.epsilon)
+
+        # prints the value of the current state we are in, online
+        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1],
+              tensor_target_next_state_action_value[-1], "diff",
+              tensor_bellman_current_state_value[-1] - tensor_current_state_action_value[-1])
+        return loss.item()
 
         # if step_in_episode > self.steps_increase_epsilon:
         #     if self.is_greedy and got_stuck:
@@ -425,14 +441,7 @@ class DQN:
         #             # self.epsilon = min(0.3, self.epsilon)
         #             self.greedy_stuck_steps_taken = 0
 
-        #PURELIENAR
-        if step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += self.epsilon_increase
 
-        if self.episode_length - step_in_episode < 10:
-            self.epsilon += 0.1
-        if self.episode_length - step_in_episode < 4:
-            self.epsilon = 0.2
 
         # if self.epsilon >= 1:
         #     self.epsilon_maxed = True
@@ -448,7 +457,7 @@ class DQN:
         #             # self.epsilon = min(0.3, self.epsilon)
         #             self.greedy_stuck_steps_taken = 0
 
-        within_episode_scale = step_in_episode / self.episode_length
+
 
         # # Avg uncertainty at start of this episode
         # if step_in_episode == 10:
@@ -479,17 +488,8 @@ class DQN:
         #     self.epsilon += 0.3
             # self.epsilon = max(0.3, self.epsilon)
 
-        self.epsilon = min(1, self.epsilon)
-        self.epsilon = max(0, self.epsilon)
 
-        print("qvalue", tensor_current_state_action_value[-1], tensor_state_actions[-1], tensor_rewards[-1], tensor_target_next_state_action_value[-1], "diff", tensor_bellman_current_state_value[-1] - tensor_current_state_action_value[-1])
-        return loss.item()
-         # EPSILON += fixed constant times sign (this error - previous error(mean of previous)) problem with target network
-        # COMPUTE THE Qnetwork value instead?
 
-        # # CURRENTLY THIS IS SHRINKING AS THE TARGET NETWORK IS THE SAME WHEN WE RUN INTO A WALL
-
-        # prints the value of the current state we are in, online
 
     def epsilon_greedy_policy(self, greedy_action, epsilon=False): # TODO REMOVE IS GREEDY FROM RETURN
         if not epsilon:
