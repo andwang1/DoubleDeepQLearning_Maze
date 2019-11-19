@@ -57,22 +57,21 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Replay buffer batch size
-        self.batch_size = 40
+        self.batch_size = 50
         # Set the episode length (you will need to increase this)
         self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 200 #TODO 120, CHANGE FOR TESTING
-        self.exploration_length = 14
+        self.random_exploration_episode_length = 400 #TODO 120, CHANGE FOR TESTING
         self.random_exploration_step_size = 0.02
-        self.steps_made_in_exploration = self.random_exploration_episode_length * self.exploration_length
+        self.steps_made_in_exploration = self.random_exploration_episode_length * 5
 
         # Set number of steps at which to start training
         steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
         # every sample can be trained on twice
-        self.training_threshhold = self.random_exploration_episode_length * 3
+        self.training_threshhold = self.random_exploration_episode_length
         # Reset the total number of steps which the agent has taken
         self.num_steps_taken = 0
         # The state variable stores the latest state of the agent in the environment
@@ -80,8 +79,8 @@ class Agent:
         # The action variable stores the latest action which the agent has applied to the environment
         self.action = None
         # Replay buffer
-        self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        # self.buffer_size = 400000
+        # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
+        self.buffer_size = 400000
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
         # Step size for each step
         self.step_length = 0.02  # TODO size of normalisation
@@ -90,14 +89,16 @@ class Agent:
         self.dqn.copy_weights_to_target_dqn()
         self.dqn.episode_length = self.episode_length
         self.dqn.steps_copy_target = self.episode_length
-
+        self.dqn.steps_made_in_exploration = self.steps_made_in_exploration
         # Share access to the same replay_buffer
         self.dqn.replay_buffer = self.replay_buffer
 
+
         self.random_exploration_epsilon = 1
         self.fully_random = True
-
+        self.repeat_episode = True
         self.got_stuck = False
+        self.is_not_initalisation_run = False
 
         # 8 actions
         self.actions = np.array([[-0.02, 0],
@@ -124,7 +125,15 @@ class Agent:
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
             self.episode_counter += 1
+            # print(self.repeat_episode)
+            if self.repeat_episode and self.is_not_initalisation_run:
+                self.episode_counter -= 1
+                # print("COND_HASFINISHED")
             self.fully_random = True
+            self.steps_taken_in_episode = 0
+            self.is_not_initalisation_run = True
+            self.repeat_episode = True
+            self.got_stuck = False
             return True
         else:
             return False
@@ -133,12 +142,19 @@ class Agent:
     def get_next_action(self, state: np.ndarray):   # TODO REMOVE IS GREEDY FROM RETURN
         # RANDOM EXPLORATION IN BEGINNING
         is_greedy = False # TODO REMOVE IS GREEDY FROM RETURN
-        if self.num_steps_taken < self.steps_made_in_exploration:
+        if self.num_steps_taken < self.steps_made_in_exploration - self.random_exploration_episode_length:
             self.episode_length = self.random_exploration_episode_length
+            # time.sleep(0.1)
             if self.episode_counter < 6: # Start at 1
-                if self.num_steps_taken % self.episode_length < 50 and not self.got_stuck:
+                # print(self.episode_counter)
+                # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
+                if self.steps_taken_in_episode < 8 and self.got_stuck:
+                    # print("SETTOFALSE")
+                    self.repeat_episode = False
+                    self.episode_length = self.steps_taken_in_episode + 1
+                    action = self.episode_counter + 2
+                elif self.steps_taken_in_episode < 20 and not self.got_stuck:
                     action = self.episode_counter + 1 # EPISODE COUNTER STARTS AT 1
-                    # print("FOLLOWING")
                     if self.got_stuck:
                         action = np.random.randint(8)
                         while action == self.episode_counter + 1:
@@ -153,9 +169,13 @@ class Agent:
                 action = np.random.randint(8)
                 # 4 actions
                 # action = np.random.randint(4)
+        elif self.num_steps_taken < self.steps_made_in_exploration:
+            action = np.random.randint(8)
         else:
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
+
+        self.steps_taken_in_episode += 1
 
         # Store the action; this will be used later, when storing the transition STORE AS INT
         self.action = action
@@ -193,10 +213,14 @@ class Agent:
             reward = 2
         elif distance_to_goal < 0.7:
             reward = 1
+        elif distance_to_goal < 0.8:
+            reward = 0.5
+
         else:
             reward = 0
 
-        print("reward", reward)
+        if reward > 0:
+            print("reward", reward)
 
         transition = (self.state, self.action, reward, next_state)
         self.replay_buffer.add(transition)
@@ -215,7 +239,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = 1
+    gamma = .9
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -240,8 +264,8 @@ class DQN:
         self.replay_buffer = None
 
         # Epsilon
-        self.epsilon = 1
-        self.steps_increase_epsilon = 5
+        self.epsilon = 0.8 # TODO
+        self.steps_increase_epsilon = 8
 
         # Episode length
         self.episode_length = None
@@ -254,11 +278,14 @@ class DQN:
         self.greedy_stuck_steps_taken = 0
         self.epsilon_maxed = False
 
-
         # # Epsilon linear in episode length
-        self.epsilon_increase = 0.005
-        self.start_epsilon = 1
-        self.standard_epsilon_delta = False
+        self.epsilon_change = 0.0001
+        self.start_epsilon_delta = 0.5
+        self.start_epsilon_greedy = 0.2
+        self.is_epsilon_delta = False
+        self.is_epsilon_greedy = True
+        self.steps_made_in_exploration = 0
+        self.greedy_counter = 0
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -271,9 +298,9 @@ class DQN:
         print("EPS", self.epsilon)
         if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
             # 8 actions
-            # return np.random.randint(0, 8), False
+            return np.random.randint(0, 8), False
             # 4 actions
-            return np.random.randint(0, 4), False
+            # return np.random.randint(0, 8), False
         else:
             return greedy_action, True
 
@@ -281,11 +308,6 @@ class DQN:
         if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
 
-        # increase epsilon later as we go through episodes and hopefully know more about the initial areas
-        if step_number % self.episode_length == 0:
-            self.episode_counter += 1
-            self.epsilon_increase = 0.003
-            self.steps_increase_epsilon += 5
 
         self.optimiser.zero_grad()
         tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
@@ -311,54 +333,85 @@ class DQN:
         for index, error in zip(buffer_indices, td_error):
             self.replay_buffer.transition_td_errors[index] = error
 
+        # increase epsilon later as we go through episodes and hopefully know more about the initial areas
+        if step_number % self.episode_length == 0:
+            self.episode_counter += 1
+            if self.is_epsilon_greedy:
+                self.greedy_counter += 1
+                self.epsilon = self.start_epsilon_greedy
+                self.steps_increase_epsilon += 2
+
+            if self.greedy_counter == 3:
+                self.is_epsilon_delta = True
+                self.epsilon = self.start_epsilon_delta
+                self.is_epsilon_greedy = False
+                self.greedy_counter = 0
+            # if self.is_epsilon_delta:
+            #     self.epsilon = self.start_epsilon_delta
+            # if not self.is_epsilon_delta:
+            #     self.epsilon = self.start_epsilon_delta
+            #     self.is_epsilon_delta = True
+            #     self.is_epsilon_greedy = False
+            # elif not self.is_epsilon_greedy:
+            #     self.epsilon = self.start_epsilon_greedy
+            #     self.is_epsilon_greedy = True
+            #     self.is_epsilon_delta = False
+
         step_in_episode = step_number % self.episode_length
         episode_number = step_number // self.episode_length
         within_episode_scale = step_in_episode / self.episode_length
 
         # PURELIENAR
-        if step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += self.epsilon_increase
+        if step_number > self.steps_made_in_exploration and self.is_epsilon_delta:
+            self.epsilon -= self.epsilon_change
+            self.epsilon = max(0.1, self.epsilon)
+            if self.epsilon == 0.1:
+                self.is_epsilon_delta = False
+                self.is_epsilon_greedy = True
 
-        if self.episode_length - step_in_episode < 20:
-            self.epsilon += 0.1
-        if self.episode_length - step_in_episode < 6:
-            self.epsilon = 0.2
+        elif step_in_episode > self.steps_made_in_exploration and self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
+            self.epsilon += self.epsilon_change
 
-        if episode_number % 10 == 1:
-            self.standard_epsilon_delta = True
-            self.epsilon = self.start_epsilon
-        elif episode_number % 5 == 0:
-            self.standard_epsilon_delta = False
+            if self.episode_length - step_in_episode < 20:
+                self.epsilon = 1
+            if self.episode_length - step_in_episode < 6:
+                self.epsilon = 0.2
+
+        # if episode_number % 10 == 1:
+        #     self.standard_epsilon_delta = True
+        #     self.epsilon = self.start_epsilon
+        # elif episode_number % 5 == 0:
+        #     self.standard_epsilon_delta = False
 
         # Standard Epsilon Delta
-        if self.standard_epsilon_delta:
-            self.epsilon -= 0.003
+        # if self.standard_epsilon_delta:
+        #     self.epsilon -= 0.003
 
-        if not self.standard_epsilon_delta:
-            # Set epsilon at start of episode
-            if step_in_episode == 1:
-                self.epsilon = 0.2
-                self.epsilon_maxed = False
-            #
-            # PURELIENAR
-            if step_in_episode > self.steps_increase_epsilon:
-                self.epsilon += self.epsilon_increase
-
-            if self.episode_length - step_in_episode < 40:
-                self.epsilon += 0.1
-            if self.episode_length - step_in_episode < 10:
-                self.epsilon = 0.2
+        # if not self.standard_epsilon_delta:
+        #     # Set epsilon at start of episode
+        #     if step_in_episode == 1:
+        #         self.epsilon = 0.2
+        #         self.epsilon_maxed = False
+        #     #
+        #     # PURELIENAR
+        #     if step_in_episode > self.steps_increase_epsilon:
+        #         self.epsilon += self.epsilon_increase
+        #
+        #     if self.episode_length - step_in_episode < 40:
+        #         self.epsilon += 0.1
+        #     if self.episode_length - step_in_episode < 10:
+        #         self.epsilon = 0.2
 
         self.epsilon = min(1, self.epsilon)
         self.epsilon = max(0, self.epsilon)
 
         # # LEARNING RATE UPDATE TODO with starting rate at 0.003
         # if self.episode_counter == 10:
-        #     self.optimiser.param_groups[0]["lr"] = 0.002
-        # elif self.episode_counter == 12:
-        #     self.optimiser.param_groups[0]["lr"] = 0.001
-        # elif self.episode_counter == 17:
+        #     self.optimiser.param_groups[0]["lr"] = 0.0001
+        # elif self.episode_counter == 15:
         #     self.optimiser.param_groups[0]["lr"] = 0.0005
+        # elif self.episode_counter == 20:
+        #     self.optimiser.param_groups[0]["lr"] = 0.0003
 
         return loss.item()
 
