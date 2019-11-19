@@ -121,9 +121,11 @@ class Environment:
             if not is_agent_in_free_space:
                 next_state = state
                 self.got_stuck = True
+                print("obstacle")
         # Compute the distance to the goal
         distance_to_goal = np.linalg.norm(next_state - self.goal_state)
         # Return the next state and the distance to the goal
+        print(next_state == state)
         return next_state, distance_to_goal
 
     # Function to draw the environment and display it on the screen, if required
