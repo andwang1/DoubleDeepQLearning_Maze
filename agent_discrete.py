@@ -108,10 +108,10 @@ class Agent:
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
+
         if self.num_steps_taken % self.episode_length == 0:
             self.episode_counter += 1 # A BIT HACK TODO
-            if self.repeat_episode and self.is_not_initalisation_run:
-                self.episode_counter -= 1
+            print(self.episode_counter)
             self.steps_taken_in_episode = 0
             self.is_not_initalisation_run = True
             self.repeat_episode = True
@@ -124,40 +124,32 @@ class Agent:
     def get_next_action(self, state: np.ndarray):   # TODO REMOVE IS GREEDY FROM RETURN
         # RANDOM EXPLORATION IN BEGINNING
         is_greedy = False # TODO REMOVE IS GREEDY FROM RETURN
-
         # while we are in the number of steps try every direction and if get stuck in less than 8 end episode
         if self.num_steps_taken < self.steps_made_in_exploration - self.random_exploration_episode_length:
             self.episode_length = self.random_exploration_episode_length
-            if self.episode_counter < 6: # Start at 1
-                # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
-                if self.steps_taken_in_episode < 20 and self.got_stuck:
-                    self.repeat_episode = False
-                    self.episode_length = self.steps_taken_in_episode + 1
-                    action = self.episode_counter + 2
-                elif self.steps_taken_in_episode < 20 and not self.got_stuck:
-                    action = self.episode_counter + 1 # EPISODE COUNTER STARTS AT 1
-                    if self.got_stuck:
-                        action = np.random.randint(8)
-                        while action == self.episode_counter + 1:
-                            action = np.random.randint(8)
-                else:
-                    action = np.random.randint(8)
+            direction = (self.episode_counter - 1) % 8
+            # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
+            if self.steps_taken_in_episode < 8 and self.got_stuck:
+                self.repeat_episode = False
+                self.episode_length = self.num_steps_taken + 1
+                action = np.random.randint(8)
+            elif self.steps_taken_in_episode < 20 and not self.got_stuck:
+                action = direction
             else:
                 action = np.random.randint(8)
+
         elif self.num_steps_taken < self.steps_made_in_exploration:
             action = np.random.randint(8)
+
         else:
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
 
         self.steps_taken_in_episode += 1
-        # Store the action; this will be used later, when storing the transition STORE AS INT
+        self.num_steps_taken += 1
+        self.state = state # NP ARRAY
         self.action = action
         action = np.array(self.actions[action])
-        # Update the number of steps which the agent has taken
-        self.num_steps_taken += 1
-        # Store the state; this will be used later, when storing the transition STORE AS LIST EFFICIENCY
-        self.state = state # NP ARRAY
         return action, is_greedy # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
