@@ -237,7 +237,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = .7
+    gamma = .9
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
