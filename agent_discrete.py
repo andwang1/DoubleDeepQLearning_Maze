@@ -78,15 +78,15 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Replay buffer batch size
-        self.batch_size = 40
+        self.batch_size = 50
         # Set the episode length (you will need to increase this)
-        self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 250 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 600 #TODO 450, CHANGE FOR TESTING
-        self.random_exploration_step_size = 0.015
+        self.random_exploration_episode_length = 400 #TODO 450, CHANGE FOR TESTING
+        self.random_exploration_step_size = 0.02
         self.steps_made_in_exploration = self.random_exploration_episode_length * 8
 
         # Set number of steps at which to start training
@@ -144,7 +144,6 @@ class Agent:
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
             self.episode_counter += 1
-            self.episode_length -= 1
             # print(self.repeat_episode)
             if self.repeat_episode and self.is_not_initalisation_run:
                 self.episode_counter -= 1
@@ -168,12 +167,12 @@ class Agent:
             if self.episode_counter < 6: # Start at 1
                 # print(self.episode_counter)
                 # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
-                if self.steps_taken_in_episode < 8 and self.got_stuck:
+                if self.steps_taken_in_episode < 20 and self.got_stuck:
                     # print("SETTOFALSE")
                     self.repeat_episode = False
                     self.episode_length = self.steps_taken_in_episode + 1
                     action = self.episode_counter + 2
-                elif self.steps_taken_in_episode < 50 and not self.got_stuck:
+                elif self.steps_taken_in_episode < 20 and not self.got_stuck:
                     action = self.episode_counter + 1 # EPISODE COUNTER STARTS AT 1
                     if self.got_stuck:
                         action = np.random.randint(8)
@@ -200,7 +199,7 @@ class Agent:
         # Store the action; this will be used later, when storing the transition STORE AS INT
         self.action = action
 
-        action = np.array(self.actions[action]) / 0.02 * self.random_exploration_step_size
+        action = np.array(self.actions[action])
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
         # Store the state; this will be used later, when storing the transition STORE AS LIST EFFICIENCY
@@ -213,57 +212,31 @@ class Agent:
             self.got_stuck = True
         else:
             self.got_stuck = False
-        # if distance_to_goal < 0.01:
-        #     reward = 20
-        #     self.dqn.has_reached_goal_this_episode = True
-        # elif distance_to_goal < 0.03:
-        #     reward = 10
-        #     self.dqn.has_reached_goal_this_episode = True
-        # elif distance_to_goal < 0.05:
-        #     reward = 2
-        # elif distance_to_goal < 0.1:
-        #     reward = 1
-        # elif distance_to_goal < 0.2:
-        #     reward = 0.7
-        # elif distance_to_goal < 0.3:
-        #     reward = 0.5
-        # elif distance_to_goal < 0.4:
-        #     reward = 0.4
-        # elif distance_to_goal < 0.5:
-        #     reward = 0.3
-        # elif distance_to_goal < 0.6:
-        #     reward = 0.2
-        # elif distance_to_goal < 0.7:
-        #     reward = 0.1
-        # elif distance_to_goal < 0.8:
-        #     reward = 0.05
-        # else:
-        #     reward = 0
         if distance_to_goal < 0.01:
-            reward = 200
+            reward = 20
             self.dqn.has_reached_goal_this_episode = True
         elif distance_to_goal < 0.03:
-            reward = 100
-            self.dqn.has_reached_goal_this_episode = True
-
-        elif distance_to_goal < 0.05:
-            reward = 20
-        elif distance_to_goal < 0.1:
             reward = 10
-        elif distance_to_goal < 0.1:
-            reward = 7
-        elif distance_to_goal < 0.3:
-            reward = 5
-        elif distance_to_goal < 0.4:
-            reward = 4
-        elif distance_to_goal < 0.5:
-            reward = 3
-        elif distance_to_goal < 0.6:
+            self.dqn.has_reached_goal_this_episode = True
+        elif distance_to_goal < 0.05:
             reward = 2
-        elif distance_to_goal < 0.7:
+        elif distance_to_goal < 0.1:
             reward = 1
-        elif distance_to_goal < 0.8:
+        elif distance_to_goal < 0.2:
+            reward = 0.7
+        elif distance_to_goal < 0.3:
+            reward = 0.5
+        elif distance_to_goal < 0.4:
+            reward = 0.4
+        elif distance_to_goal < 0.5:
             reward = 0.3
+        elif distance_to_goal < 0.6:
+            reward = 0.2
+        elif distance_to_goal < 0.7:
+            reward = 0.1
+        elif distance_to_goal < 0.8:
+            reward = 0.05
+
         else:
             reward = 0
 
@@ -315,7 +288,7 @@ class DQN:
         self.replay_buffer = None
 
         # Epsilon
-        self.epsilon = 0.8 # TODO
+        self.epsilon = 0.6 # TODO
         # self.steps_increase_epsilon = 15
         self.steps_increase_epsilon = 45
 
@@ -358,6 +331,7 @@ class DQN:
         self.epsilon_greedy_exploration_got_stuck = False
         self.possible_actions_after_first_stuck = False
         self.explore_randomly_now = False
+        self.saved_epsilon = 0.7
 
         self.has_reached_goal_this_episode = False
 
@@ -417,80 +391,6 @@ class DQN:
             # If its optimal to go any other way
             return np.random.randint(8), False
 
-            #
-            #
-            #     # return np.random.choice([2, 4, 3, 0, 1], 1, p=[0.3, 0.3, 0.1, 0.05, 0.05])
-            # elif greedy_action == 6:
-            #     # return np.random.choice([2, 4, 3, 0, 1], 1, p=[0.3, 0.3, 0.1, 0.05, 0.05])
-            #
-            # # Will it ever have to go left? # Will we ever come from a different diretion than left?
-            # # if yes need to add opposite of down is also right TODO
-            # if not self.explore_randomly_now:
-            #     if self.epsilon_greedy_exploration_action is False:
-            #         self.possible_actions_after_first_stuck = [i for i in self.all_actions]
-            #         self.exploration_step_counter_greedy = 1
-            #         self.possible_actions_after_first_stuck.remove(greedy_action)
-            #
-            #         self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
-            #         print("available actions", self.possible_actions_after_first_stuck, "picked", self.epsilon_greedy_exploration_action)
-            #         return self.epsilon_greedy_exploration_action, False
-            #
-            #
-            #     elif not self.epsilon_greedy_exploration_got_stuck:
-            #         self.exploration_step_counter_greedy += 1
-            #         print("keep executing", self.epsilon_greedy_exploration_action)
-            #         return self.epsilon_greedy_exploration_action, False
-            #
-            #     # If we have hit another wall we now want to explore again, any direction but left
-            #     elif self.epsilon_greedy_exploration_got_stuck:
-            #         print("got stuck")
-            #
-            #         # Set this to false to reset
-            #         self.epsilon_greedy_exploration_got_stuck = False
-            #
-            #
-            #         # If we immediately run into another wall, try a different action
-            #         if self.exploration_step_counter_greedy < 4:
-            #             try: # This shouldnt need a try block, one of the actions should work
-            #                 self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
-            #                 print("got stuck again, next action", self.possible_actions_after_first_stuck, self.epsilon_greedy_exploration_action)
-            #             except:
-            #                 print("EXCEPT")
-            #                 return np.random.randint(8), False
-            #
-            #             self.exploration_step_counter_greedy = 1
-            #             return self.epsilon_greedy_exploration_action, False
-            #
-            #         # If we only get stuck after more steps we have found our way out, do random action from actions
-            #         # That are not the direction we came from or left
-            #         else:
-            #             direction_came_from = (self.epsilon_greedy_exploration_action - 4) % 8
-            #             self.domain = list(set(self.all_actions) - {direction_came_from})
-            #             print("got stuck but will explore now, this is domain", self.domain)
-            #             self.explore_randomly_now = True
-            #
-            #
-            #
-            #
-            #     # DEBUG
-            #     else:
-            #         print("catchall", self.epsilon_greedy_exploration_action, self.epsilon_greedy_exploration_got_stuck)
-            #
-            # # found our way out already
-            # if self.explore_randomly_now:
-            #     print("inrandomexploration")
-            #     if np.random.randint(0, 100) in range(80):
-            #         random_action = np.random.choice(self.domain)
-            #         while random_action == greedy_action:
-            #             random_action = np.random.choice(self.domain)
-            #         print("executing domain", random_action)
-            #         return random_action, False
-            #         # 4 actions
-            #         # return np.random.randint(0, 8), False
-            #     else:
-            #         print("exec greedy, not domain")
-            #         return greedy_action, True
-
         else:
             # Standard epsilon greedy
             if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
@@ -504,13 +404,10 @@ class DQN:
             else:
                 return greedy_action, True
 
-        print("NORETURN")
-        raise
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
-
 
         self.optimiser.zero_grad()
         tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
@@ -544,6 +441,9 @@ class DQN:
             self.epsilon_greedy_exploration_got_stuck = False
             self.possible_actions_after_first_stuck = False
             self.explore_randomly_now = False
+            self.epsilon = self.saved_epsilon
+            self.saved_epsilon = False
+
 
             self.episode_counter += 1
 
@@ -581,10 +481,17 @@ class DQN:
         # PURELIENAR
         if step_number > self.steps_made_in_exploration and self.is_epsilon_delta:
             self.epsilon -= self.epsilon_change
+            # At end do more random exploration
+            if self.episode_length - step_in_episode == 50:
+                if not self.saved_epsilon:
+                    self.saved_epsilon = self.epsilon
+                self.epsilon = 0.7
             if self.epsilon <= 0.2:
                 self.is_epsilon_delta = True
                 self.epsilon = self.start_epsilon_delta
                 self.is_epsilon_greedy = False
+                self.saved_epsilon = False
+
 
         # # This condition so doesnt interfere with -99 at end epsilon > 0
         # elif self.epsilon > 0 and step_number > self.steps_made_in_exploration and \
