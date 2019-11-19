@@ -32,40 +32,45 @@ class Network(torch.nn.Module):
         # Call the initialisation function of the parent class.
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
+        # self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        # self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.layer_5 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
-        self.layer_5 = torch.nn.Linear(in_features=200, out_features=200)
-        self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
-        # self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
-        # self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
-        # self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
-        # self.layer_4 = torch.nn.Linear(in_features=200, out_features=100)
-        # self.layer_5 = torch.nn.Linear(in_features=200, out_features=100)
-        # self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
+        self.layer_5 = torch.nn.Linear(in_features=200, out_features=100)
+        self.layer_6 = torch.nn.Linear(in_features=200, out_features=100)
+        self.layer_7 = torch.nn.Linear(in_features=200, out_features=100)
+        self.output_layer = torch.nn.Linear(in_features=300, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.layer_3.weight)
         torch.nn.init.xavier_uniform_(self.layer_4.weight)
         torch.nn.init.xavier_uniform_(self.layer_5.weight)
+        torch.nn.init.xavier_uniform_(self.layer_6.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
-        layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
-        layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
-        layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_2_output))
-        layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_3_output))
-        layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_4_output))
-        output = self.output_layer(layer_5_output)
         # layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
         # layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
-        # layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_1_output))
-        # layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_2_output))
-        # layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_3_output))
-        # layer_concat = torch.cat(layer_4_output, layer_5_output)
-        # output = self.output_layer(layer_concat)
+        # layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_2_output))
+        # layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_3_output))
+        # layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_4_output))
+        # output = self.output_layer(layer_5_output)
+        layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
+        layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
+        layer_3_output = torch.nn.functional.relu(self.layer_3(layer_1_output))
+        layer_4_output = torch.nn.functional.relu(self.layer_4(layer_1_output))
+        layer_5_output = torch.nn.functional.relu(self.layer_5(layer_2_output))
+        layer_6_output = torch.nn.functional.relu(self.layer_6(layer_3_output))
+        layer_7_output = torch.nn.functional.relu(self.layer_7(layer_4_output))
+        layer_concat = torch.cat((layer_7_output, layer_5_output, layer_6_output), dim=1)
+        output = self.output_layer(layer_concat)
         return output
 
 
@@ -313,7 +318,10 @@ class DQN:
         print("EPS", self.epsilon)
         if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
             # 8 actions
-            return np.random.randint(0, 8), False
+            random_action = np.random.randint(0, 8)
+            while random_action == greedy_action:
+                random_action = np.random.randint(0, 8)
+            return random_action, False
             # 4 actions
             # return np.random.randint(0, 8), False
         else:
@@ -387,10 +395,10 @@ class DQN:
                 self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
             self.epsilon += self.epsilon_increase
 
-            if self.episode_length - step_in_episode < 40:
-                self.epsilon += 0.1
             if self.episode_length - step_in_episode < 10:
-                self.epsilon = 0.2
+                self.epsilon -= 0.05
+            elif self.episode_length - step_in_episode < 40:
+                self.epsilon = 0.55
 
         # if episode_number % 10 == 1:
         #     self.standard_epsilon_delta = True
