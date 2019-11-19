@@ -85,9 +85,9 @@ class Agent:
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 500 #TODO 450, CHANGE FOR TESTING
+        self.random_exploration_episode_length = 300 #TODO 450, CHANGE FOR TESTING
         self.random_exploration_step_size = 0.02
-        self.steps_made_in_exploration = self.random_exploration_episode_length * 5
+        self.steps_made_in_exploration = self.random_exploration_episode_length * 6
 
         # Set number of steps at which to start training
         steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
