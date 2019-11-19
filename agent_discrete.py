@@ -17,7 +17,7 @@
 
 """"NP CONCAT IS SLOW"""
 
-
+num_actions = 8
 
 import numpy as np
 import torch
@@ -101,25 +101,23 @@ class Agent:
         self.is_not_initalisation_run = False
 
         # 8 actions
-        self.actions = np.array([[-0.02, 0],
-                                 [-0.01414, -0.01414],
-                                 [0, -0.02],
-                                 [0.01414, -0.01414],
-                                 [0.02, 0],
-                                 [0.01414, 0.01414],
-                                 [0, 0.02],
-                                 [-0.01414, 0.01414],
-                                 ])
-        #
+        if num_actions == 8:
+            self.actions = np.array([[-0.02, 0],
+                                     [-0.01414, -0.01414],
+                                     [0, -0.02],
+                                     [0.01414, -0.01414],
+                                     [0.02, 0],
+                                     [0.01414, 0.01414],
+                                     [0, 0.02],
+                                     [-0.01414, 0.01414],
+                                     ])
+
         # 4 actions
-        # self.actions = np.array([[0.02, 0],
-        #                          [0.01414, 0.01414],
-                                 # [0, 0.02],
-                                 # [-0.01414, 0.01414],
-                                 # [-0.02, 0],
-                                 # [-0.01414, -0.01414],
-                                 # [0, -0.02]])
-                                 # [0.01414, -0.01414]])
+        if num_actions == 4:
+            self.actions = np.array([[0.02, 0],
+                                     [0, 0.02],
+                                     [-0.02, 0],
+                                     [0, -0.02]])
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
@@ -239,7 +237,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = .9
+    gamma = .7
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -265,7 +263,7 @@ class DQN:
 
         # Epsilon
         self.epsilon = 0.8 # TODO
-        self.steps_increase_epsilon = 8
+        self.steps_increase_epsilon = 15
 
         # Episode length
         self.episode_length = None
@@ -279,11 +277,12 @@ class DQN:
         self.epsilon_maxed = False
 
         # # Epsilon linear in episode length
-        self.epsilon_change = 0.0001
+        self.epsilon_change = 0.0002
         self.start_epsilon_delta = 0.5
         self.start_epsilon_greedy = 0.2
         self.is_epsilon_delta = False
         self.is_epsilon_greedy = True
+        self.epsilon_increase = 0.005
         self.steps_made_in_exploration = 0
         self.greedy_counter = 0
 
@@ -364,15 +363,15 @@ class DQN:
         # PURELIENAR
         if step_number > self.steps_made_in_exploration and self.is_epsilon_delta:
             self.epsilon -= self.epsilon_change
-            self.epsilon = max(0.1, self.epsilon)
-            if self.epsilon == 0.1:
+            if self.epsilon <= 0.2:
                 self.is_epsilon_delta = False
                 self.is_epsilon_greedy = True
 
-        elif step_in_episode > self.steps_made_in_exploration and self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += self.epsilon_change
+        elif step_number > self.steps_made_in_exploration and \
+                self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
+            self.epsilon += self.epsilon_increase
 
-            if self.episode_length - step_in_episode < 20:
+            if self.episode_length - step_in_episode < 30:
                 self.epsilon = 1
             if self.episode_length - step_in_episode < 6:
                 self.epsilon = 0.2
