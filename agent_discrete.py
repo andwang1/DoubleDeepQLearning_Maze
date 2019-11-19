@@ -36,11 +36,19 @@ class Network(torch.nn.Module):
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
+        self.layer_5 = torch.nn.Linear(in_features=200, out_features=200)
         self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
+        # self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        # self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
+        # self.layer_4 = torch.nn.Linear(in_features=200, out_features=100)
+        # self.layer_5 = torch.nn.Linear(in_features=200, out_features=100)
+        # self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.layer_3.weight)
         torch.nn.init.xavier_uniform_(self.layer_4.weight)
+        torch.nn.init.xavier_uniform_(self.layer_5.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
@@ -49,7 +57,15 @@ class Network(torch.nn.Module):
         layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
         layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_2_output))
         layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_3_output))
-        output = self.output_layer(layer_4_output)
+        layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_4_output))
+        output = self.output_layer(layer_5_output)
+        # layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
+        # layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
+        # layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_1_output))
+        # layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_2_output))
+        # layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_3_output))
+        # layer_concat = torch.cat(layer_4_output, layer_5_output)
+        # output = self.output_layer(layer_concat)
         return output
 
 
@@ -237,7 +253,7 @@ class Agent:
 
 # The DQN class determines how to train the above neural network.
 class DQN:
-    gamma = .9
+    gamma = .95
     # The class initialisation function.
     def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
         # Create a Q-network, which predicts the q-value for a particular state.
@@ -371,9 +387,9 @@ class DQN:
                 self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
             self.epsilon += self.epsilon_increase
 
-            if self.episode_length - step_in_episode < 30:
-                self.epsilon = 1
-            if self.episode_length - step_in_episode < 6:
+            if self.episode_length - step_in_episode < 40:
+                self.epsilon += 0.1
+            if self.episode_length - step_in_episode < 10:
                 self.epsilon = 0.2
 
         # if episode_number % 10 == 1:
@@ -419,19 +435,14 @@ class DQN:
         network_prediction = self.q_network.forward(input_tensor)
         return int(network_prediction.argmax())
 
-    def return_greedy_actions_tensor(self, tensor_states):
-        tensor_network_predictions = self.q_network.forward(tensor_states)
-        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1)
-        return tensor_greedy_actions
-
     def return_next_state_values_tensor(self, tensor_next_states):
         # Double Q
         tensor_network_predictions = self.q_network.forward(tensor_next_states)
-        predictions_np_array = tensor_network_predictions.detach().numpy()
-        greedy_actions = np.argmax(predictions_np_array, axis=1) # TODO
+        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1,1)
+        with torch.no_grad():
+            tensor_target_network_predictions = self.target_q_network.forward(tensor_next_states)
         # Reshape from 1D 1x* to 2D *x 1 array so can transform and output a tensor
-        tensor_greedy_actions = torch.tensor(greedy_actions.reshape(-1, 1))
-        tensor_next_state_values = torch.gather(tensor_network_predictions, 1, tensor_greedy_actions)
+        tensor_next_state_values = torch.gather(tensor_target_network_predictions, 1, tensor_greedy_actions)
         return tensor_next_state_values
 
 class ReplayBuffer:
