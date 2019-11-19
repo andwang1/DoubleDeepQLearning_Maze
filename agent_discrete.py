@@ -85,7 +85,7 @@ class Agent:
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 450 #TODO 450, CHANGE FOR TESTING
+        self.random_exploration_episode_length = 500 #TODO 450, CHANGE FOR TESTING
         self.random_exploration_step_size = 0.02
         self.steps_made_in_exploration = self.random_exploration_episode_length * 5
 
@@ -209,35 +209,31 @@ class Agent:
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if np.linalg.norm(self.state - next_state) < 0.002:
-            print("SETSTUCKFUNC")
-            print(self.state, next_state)
-            print(np.linalg.norm(self.state - next_state))
-            print()
             self.got_stuck = True
         else:
             self.got_stuck = False
         if distance_to_goal < 0.01:
-            reward = 200
-        elif distance_to_goal < 0.03:
-            reward = 100
-        elif distance_to_goal < 0.05:
             reward = 20
-        elif distance_to_goal < 0.1:
+        elif distance_to_goal < 0.03:
             reward = 10
-        elif distance_to_goal < 0.2:
-            reward = 7
-        elif distance_to_goal < 0.3:
-            reward = 5
-        elif distance_to_goal < 0.4:
-            reward = 4
-        elif distance_to_goal < 0.5:
-            reward = 3
-        elif distance_to_goal < 0.6:
+        elif distance_to_goal < 0.05:
             reward = 2
-        elif distance_to_goal < 0.7:
+        elif distance_to_goal < 0.1:
             reward = 1
-        elif distance_to_goal < 0.8:
+        elif distance_to_goal < 0.2:
+            reward = 0.7
+        elif distance_to_goal < 0.3:
             reward = 0.5
+        elif distance_to_goal < 0.4:
+            reward = 0.4
+        elif distance_to_goal < 0.5:
+            reward = 0.3
+        elif distance_to_goal < 0.6:
+            reward = 0.2
+        elif distance_to_goal < 0.7:
+            reward = 0.1
+        elif distance_to_goal < 0.8:
+            reward = 0.05
 
         else:
             reward = 0
@@ -288,7 +284,8 @@ class DQN:
 
         # Epsilon
         self.epsilon = 0.8 # TODO
-        self.steps_increase_epsilon = 15
+        # self.steps_increase_epsilon = 15
+        self.steps_increase_epsilon = 45
 
         # What to do first initially
         self.is_epsilon_delta = False
@@ -308,7 +305,7 @@ class DQN:
         # # Epsilon linear in episode length
         self.epsilon_change = 0.0002
         self.start_epsilon_delta = 0.5
-        self.start_epsilon_greedy = 0.2
+        self.start_epsilon_greedy = 0.15
 
         self.epsilon_increase = 0.005
         self.steps_made_in_exploration = 0
@@ -318,6 +315,12 @@ class DQN:
         self.up_or_down = [2, 6]
         self.right_half = {2, 3, 4, 5, 6}
         self.all_actions = [0, 1, 3, 7, 5, 4, 2, 6]
+
+        self.lower_quadrant = [2, 3]
+        self.upper_quadrant = [5, 6]
+        self.up_or_down = [2, 6]
+        self.right_half = {2, 3, 4, 5, 6}
+        self.all_actions = {0, 1, 3, 7, 5, 4, 2, 6}
 
         self.epsilon_greedy_exploration_action = False
         self.epsilon_greedy_exploration_got_stuck = False
@@ -339,73 +342,120 @@ class DQN:
             print("enter loop")
             print("greedy action", greedy_action)
 
-            # Will it ever have to go left? # Will we ever come from a different diretion than left?
-            # if yes need to add opposite of down is also right TODO
-            if not self.explore_randomly_now:
-                if self.epsilon_greedy_exploration_action is False:
-                    self.possible_actions_after_first_stuck = [i for i in self.all_actions]
-                    self.exploration_step_counter_greedy = 1
-                    self.possible_actions_after_first_stuck.remove(greedy_action)
-
-                    self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
-                    print("available actions", self.possible_actions_after_first_stuck, "picked", self.epsilon_greedy_exploration_action)
-                    return self.epsilon_greedy_exploration_action, False
-
-
-                elif not self.epsilon_greedy_exploration_got_stuck:
-                    self.exploration_step_counter_greedy += 1
-                    print("keep executing", self.epsilon_greedy_exploration_action)
-                    return self.epsilon_greedy_exploration_action, False
-
-                # If we have hit another wall we now want to explore again, any direction but left
-                elif self.epsilon_greedy_exploration_got_stuck:
-                    print("got stuck")
-
-                    # Set this to false to reset
-                    self.epsilon_greedy_exploration_got_stuck = False
-
-
-                    # If we immediately run into another wall, try a different action
-                    if self.exploration_step_counter_greedy < 4:
-                        try: # This shouldnt need a try block, one of the actions should work
-                            self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
-                            print("got stuck again, next action", self.possible_actions_after_first_stuck, self.epsilon_greedy_exploration_action)
-                        except:
-                            print("EXCEPT")
-                            return np.random.randint(8), False
-
-                        self.exploration_step_counter_greedy = 1
-                        return self.epsilon_greedy_exploration_action, False
-
-                    # If we only get stuck after more steps we have found our way out, do random action from actions
-                    # That are not the direction we came from or left
-                    else:
-                        direction_came_from = (self.epsilon_greedy_exploration_action - 4) % 8
-                        self.domain = list(set(self.all_actions) - {direction_came_from})
-                        print("got stuck but will explore now, this is domain", self.domain)
-                        self.explore_randomly_now = True
-
-
-
-
-                # DEBUG
-                else:
-                    print("catchall", self.epsilon_greedy_exploration_action, self.epsilon_greedy_exploration_got_stuck)
-
-            # found our way out already
-            if self.explore_randomly_now:
-                print("inrandomexploration")
+            if greedy_action == 2: # DOWN
+                likely_next_actions = [3, 4, 5, 6]
                 if np.random.randint(0, 100) in range(80):
-                    random_action = np.random.choice(self.domain)
-                    while random_action == greedy_action:
-                        random_action = np.random.choice(self.domain)
-                    print("executing domain", random_action)
-                    return random_action, False
-                    # 4 actions
-                    # return np.random.randint(0, 8), False
+                    return np.random.choice(likely_next_actions), False
                 else:
-                    print("exec greedy, not domain")
-                    return greedy_action, True
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 3: # DIAG DOWN RIGHT
+                likely_next_actions = [6, 5]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 4: # RIGHT
+                likely_next_actions = [6, 5, 4, 3]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 5:
+                likely_next_actions = [2, 3]
+                if np.random.randint(0, 100) in range(80):
+                    if np.random.randint(0, 100) in range(70):
+                        return 2, False
+                    else:
+                        return 3, False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 6:
+                likely_next_actions = [2, 3, 4, 5]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            # If its optimal to go any other way
+            return np.random.randint(8), False
+
+            #
+            #
+            #     # return np.random.choice([2, 4, 3, 0, 1], 1, p=[0.3, 0.3, 0.1, 0.05, 0.05])
+            # elif greedy_action == 6:
+            #     # return np.random.choice([2, 4, 3, 0, 1], 1, p=[0.3, 0.3, 0.1, 0.05, 0.05])
+            #
+            # # Will it ever have to go left? # Will we ever come from a different diretion than left?
+            # # if yes need to add opposite of down is also right TODO
+            # if not self.explore_randomly_now:
+            #     if self.epsilon_greedy_exploration_action is False:
+            #         self.possible_actions_after_first_stuck = [i for i in self.all_actions]
+            #         self.exploration_step_counter_greedy = 1
+            #         self.possible_actions_after_first_stuck.remove(greedy_action)
+            #
+            #         self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
+            #         print("available actions", self.possible_actions_after_first_stuck, "picked", self.epsilon_greedy_exploration_action)
+            #         return self.epsilon_greedy_exploration_action, False
+            #
+            #
+            #     elif not self.epsilon_greedy_exploration_got_stuck:
+            #         self.exploration_step_counter_greedy += 1
+            #         print("keep executing", self.epsilon_greedy_exploration_action)
+            #         return self.epsilon_greedy_exploration_action, False
+            #
+            #     # If we have hit another wall we now want to explore again, any direction but left
+            #     elif self.epsilon_greedy_exploration_got_stuck:
+            #         print("got stuck")
+            #
+            #         # Set this to false to reset
+            #         self.epsilon_greedy_exploration_got_stuck = False
+            #
+            #
+            #         # If we immediately run into another wall, try a different action
+            #         if self.exploration_step_counter_greedy < 4:
+            #             try: # This shouldnt need a try block, one of the actions should work
+            #                 self.epsilon_greedy_exploration_action = self.possible_actions_after_first_stuck.pop()
+            #                 print("got stuck again, next action", self.possible_actions_after_first_stuck, self.epsilon_greedy_exploration_action)
+            #             except:
+            #                 print("EXCEPT")
+            #                 return np.random.randint(8), False
+            #
+            #             self.exploration_step_counter_greedy = 1
+            #             return self.epsilon_greedy_exploration_action, False
+            #
+            #         # If we only get stuck after more steps we have found our way out, do random action from actions
+            #         # That are not the direction we came from or left
+            #         else:
+            #             direction_came_from = (self.epsilon_greedy_exploration_action - 4) % 8
+            #             self.domain = list(set(self.all_actions) - {direction_came_from})
+            #             print("got stuck but will explore now, this is domain", self.domain)
+            #             self.explore_randomly_now = True
+            #
+            #
+            #
+            #
+            #     # DEBUG
+            #     else:
+            #         print("catchall", self.epsilon_greedy_exploration_action, self.epsilon_greedy_exploration_got_stuck)
+            #
+            # # found our way out already
+            # if self.explore_randomly_now:
+            #     print("inrandomexploration")
+            #     if np.random.randint(0, 100) in range(80):
+            #         random_action = np.random.choice(self.domain)
+            #         while random_action == greedy_action:
+            #             random_action = np.random.choice(self.domain)
+            #         print("executing domain", random_action)
+            #         return random_action, False
+            #         # 4 actions
+            #         # return np.random.randint(0, 8), False
+            #     else:
+            #         print("exec greedy, not domain")
+            #         return greedy_action, True
 
         else:
             # Standard epsilon greedy
@@ -496,16 +546,32 @@ class DQN:
                 self.is_epsilon_delta = False
                 self.is_epsilon_greedy = True
 
-        # This condition so doesnt interfere with -99 at end epsilon > 0
-        elif self.epsilon > 0 and step_number > self.steps_made_in_exploration and \
-                self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
-            self.epsilon += self.epsilon_increase
+        # # This condition so doesnt interfere with -99 at end epsilon > 0
+        # elif self.epsilon > 0 and step_number > self.steps_made_in_exploration and \
+        #         self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
+        #     self.epsilon += self.epsilon_increase
+        #
+        # if step_number > self.steps_made_in_exploration \
+        #         and self.episode_length - step_in_episode < 100 \
+        #         and got_stuck and episode_number > 20:
+        #     self.epsilon = -99
+        #     if got_stuck:
+        #         print("setting got stuck")
+        #         self.epsilon_greedy_exploration_got_stuck = True
 
-        if step_number > self.steps_made_in_exploration and self.episode_length - step_in_episode < 20 and got_stuck and episode_number > 20:
-            self.epsilon = -99
-            if got_stuck:
-                print("setting got stuck")
-                self.epsilon_greedy_exploration_got_stuck = True
+                # This condition so doesnt interfere with -99 at end epsilon > 0
+        if self.epsilon > 0 and step_number > self.steps_made_in_exploration and \
+            self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon \
+                and self.episode_length - step_in_episode < 150 and got_stuck and episode_number > 20:
+
+                self.epsilon = -99
+                if got_stuck:
+                    self.epsilon_greedy_exploration_got_stuck = True
+
+
+
+        if self.epsilon <= -90 and self.episode_length - step_in_episode < 30:
+            self.epsilon = 0.2
 
         self.epsilon = min(1, self.epsilon)
         # self.epsilon = max(0, self.epsilon)

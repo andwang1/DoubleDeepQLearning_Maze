@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     # Create a random seed, which will define the environment
     random_seed = int(time.time())
-    np.random.seed(2) #25 # 15
+    np.random.seed(2) #25 # 15 #2
 
     # Create a random environment
     environment = Environment(magnification=500)
