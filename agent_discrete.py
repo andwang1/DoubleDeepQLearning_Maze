@@ -78,16 +78,16 @@ class Agent:
     # Function to initialise the agent
     def __init__(self):
         # Replay buffer batch size
-        self.batch_size = 50
+        self.batch_size = 40
         # Set the episode length (you will need to increase this)
-        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 300 # 100 is the episode they will run at TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 300 #TODO 450, CHANGE FOR TESTING
-        self.random_exploration_step_size = 0.02
-        self.steps_made_in_exploration = self.random_exploration_episode_length * 6
+        self.random_exploration_episode_length = 600 #TODO 450, CHANGE FOR TESTING
+        self.random_exploration_step_size = 0.015
+        self.steps_made_in_exploration = self.random_exploration_episode_length * 8
 
         # Set number of steps at which to start training
         steps_needed_with_batch_to_train = self.steps_made_in_exploration / self.batch_size
@@ -144,6 +144,7 @@ class Agent:
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
             self.episode_counter += 1
+            self.episode_length -= 1
             # print(self.repeat_episode)
             if self.repeat_episode and self.is_not_initalisation_run:
                 self.episode_counter -= 1
@@ -172,7 +173,7 @@ class Agent:
                     self.repeat_episode = False
                     self.episode_length = self.steps_taken_in_episode + 1
                     action = self.episode_counter + 2
-                elif self.steps_taken_in_episode < 20 and not self.got_stuck:
+                elif self.steps_taken_in_episode < 50 and not self.got_stuck:
                     action = self.episode_counter + 1 # EPISODE COUNTER STARTS AT 1
                     if self.got_stuck:
                         action = np.random.randint(8)
@@ -199,7 +200,7 @@ class Agent:
         # Store the action; this will be used later, when storing the transition STORE AS INT
         self.action = action
 
-        action = np.array(self.actions[action])
+        action = np.array(self.actions[action]) / 0.02 * self.random_exploration_step_size
         # Update the number of steps which the agent has taken
         self.num_steps_taken += 1
         # Store the state; this will be used later, when storing the transition STORE AS LIST EFFICIENCY
@@ -212,29 +213,57 @@ class Agent:
             self.got_stuck = True
         else:
             self.got_stuck = False
+        # if distance_to_goal < 0.01:
+        #     reward = 20
+        #     self.dqn.has_reached_goal_this_episode = True
+        # elif distance_to_goal < 0.03:
+        #     reward = 10
+        #     self.dqn.has_reached_goal_this_episode = True
+        # elif distance_to_goal < 0.05:
+        #     reward = 2
+        # elif distance_to_goal < 0.1:
+        #     reward = 1
+        # elif distance_to_goal < 0.2:
+        #     reward = 0.7
+        # elif distance_to_goal < 0.3:
+        #     reward = 0.5
+        # elif distance_to_goal < 0.4:
+        #     reward = 0.4
+        # elif distance_to_goal < 0.5:
+        #     reward = 0.3
+        # elif distance_to_goal < 0.6:
+        #     reward = 0.2
+        # elif distance_to_goal < 0.7:
+        #     reward = 0.1
+        # elif distance_to_goal < 0.8:
+        #     reward = 0.05
+        # else:
+        #     reward = 0
         if distance_to_goal < 0.01:
-            reward = 20
+            reward = 200
+            self.dqn.has_reached_goal_this_episode = True
         elif distance_to_goal < 0.03:
-            reward = 10
-        elif distance_to_goal < 0.05:
-            reward = 2
-        elif distance_to_goal < 0.1:
-            reward = 1
-        elif distance_to_goal < 0.2:
-            reward = 0.7
-        elif distance_to_goal < 0.3:
-            reward = 0.5
-        elif distance_to_goal < 0.4:
-            reward = 0.4
-        elif distance_to_goal < 0.5:
-            reward = 0.3
-        elif distance_to_goal < 0.6:
-            reward = 0.2
-        elif distance_to_goal < 0.7:
-            reward = 0.1
-        elif distance_to_goal < 0.8:
-            reward = 0.05
+            reward = 100
+            self.dqn.has_reached_goal_this_episode = True
 
+        elif distance_to_goal < 0.05:
+            reward = 20
+        elif distance_to_goal < 0.1:
+            reward = 10
+        elif distance_to_goal < 0.1:
+            reward = 7
+        elif distance_to_goal < 0.3:
+            reward = 5
+        elif distance_to_goal < 0.4:
+            reward = 4
+        elif distance_to_goal < 0.5:
+            reward = 3
+        elif distance_to_goal < 0.6:
+            reward = 2
+        elif distance_to_goal < 0.7:
+            reward = 1
+        elif distance_to_goal < 0.8:
+            reward = 0.3
         else:
             reward = 0
 
@@ -245,7 +274,10 @@ class Agent:
         self.replay_buffer.add(transition)
         # Add new weight of 1 for the newest transition, we will make sure this gets picked manually by adding to batch
         # Cannot make this 0 for some reason will give error ValueError: probabilities contain NaN
-        self.replay_buffer.transition_td_errors.append(0.0001)
+        if self.num_steps_taken < self.steps_made_in_exploration:
+            self.replay_buffer.transition_td_errors.append(reward + 0.0001)
+        else:
+            self.replay_buffer.transition_td_errors.append(0.0001)
 
         # Train
         if self.num_steps_taken > self.training_threshhold:
@@ -326,6 +358,8 @@ class DQN:
         self.epsilon_greedy_exploration_got_stuck = False
         self.possible_actions_after_first_stuck = False
         self.explore_randomly_now = False
+
+        self.has_reached_goal_this_episode = False
 
     def copy_weights_to_target_dqn(self, other_dqn = False):
         if other_dqn:
@@ -513,6 +547,11 @@ class DQN:
 
             self.episode_counter += 1
 
+            if self.has_reached_goal_this_episode:
+                self.start_epsilon_greedy -= 0.01
+                self.start_epsilon_greedy = max(0.2, self.start_epsilon_greedy)
+
+            self.has_reached_goal_this_episode = False
 
             if self.is_epsilon_greedy:
                 self.greedy_counter += 1
@@ -543,8 +582,9 @@ class DQN:
         if step_number > self.steps_made_in_exploration and self.is_epsilon_delta:
             self.epsilon -= self.epsilon_change
             if self.epsilon <= 0.2:
-                self.is_epsilon_delta = False
-                self.is_epsilon_greedy = True
+                self.is_epsilon_delta = True
+                self.epsilon = self.start_epsilon_delta
+                self.is_epsilon_greedy = False
 
         # # This condition so doesnt interfere with -99 at end epsilon > 0
         # elif self.epsilon > 0 and step_number > self.steps_made_in_exploration and \
