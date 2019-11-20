@@ -85,7 +85,6 @@ class Agent:
         self.start_training = False
         self.first_train = True
 
-
         self.num_steps_taken = 0
         self.state = None
         self.action = None
@@ -130,11 +129,11 @@ class Agent:
 
             # Decrease episode length every time we reach the goal
             if self.dqn.has_reached_goal_previous_episode:
-                print("DECREASING EP LENGTH", self.episode_length)
                 self.episode_length -= 5
                 self.episode_length = max(100, self.episode_length)
                 # self.actual_episode_length -= 5 # TODO
-                # self.actual_episode_length = max(100, self.episode_length)
+                # self.actual_episode_length = max(100, self.actual_episode_length)
+                print("DECREASING EP LENGTH", self.episode_length)
             return True
         else:
             return False
@@ -197,7 +196,7 @@ class Agent:
                 self.reached_goal = True
                 self.replay_buffer.convert_deque_to_array()
                 # Break the episode
-                self.episode_length = self.num_steps_taken
+                # self.episode_length = self.num_steps_taken
 
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
@@ -517,8 +516,6 @@ class ReplayBuffer:
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
     def generate_batch(self, batch_size):
         # Adding a min probability constant to make sure transitions with small errors are still selected
-        min_probability_constant = 0.5  # TODO
-
         # Distance weights
         # Calculate weights by iterating through array
         # print("before indices")
@@ -535,8 +532,11 @@ class ReplayBuffer:
                 # print(distance)
                 samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
                 # print(samples_at_distance)
-
-            indices.append(np.random.choice(samples_at_distance))
+            try:
+                indices.append(np.random.choice(samples_at_distance, 2, replace=False))
+            except:
+                print("ONLY ONE SAMPLE AVAILABLE")
+                indices.append(np.random.choice(samples_at_distance))
 
         # print("calculated indices")
         # Normalise weights
