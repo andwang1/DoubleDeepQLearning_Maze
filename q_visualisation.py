@@ -70,6 +70,7 @@ class QVisualisation:
             cv2.line(self.image, startpoint, endpoint, (255, 255, 255), 2)
 
         # Show the image
+        cv2.imwrite("batch_learning_q.png", self.image)
         cv2.imshow("Environment", self.image)
         # This line is necessary to give time for the image to be rendered on the screen
         cv2.waitKey(1)

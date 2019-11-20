@@ -212,9 +212,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_rewards = False
+    plot_rewards = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     environment = Environment(display=False, magnification=1000)
@@ -226,10 +226,10 @@ if __name__ == "__main__":
     optimal_delta = 0.00258
     # reward 13.192618285762457
     # For plotting
-    # delta_range = [0, 0.001, optimal_delta, 0.011, 1]
+    delta_range = [0, 0.0013, optimal_delta, 0.021, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
-    delta_range = np.arange(0.00258, 0.00259, 0.001)
-    print("begin")
+    # delta_range = np.arange(0.00258, 0.00259, 0.001)
+    # print("begin")
 
     for delta in delta_range:
         print("step")
@@ -312,8 +312,8 @@ if __name__ == "__main__":
 
     # Plotting the reward functions as function of steps and time
     if plot_rewards:
-        ax1 = sns.lineplot(delta_range, episode_rewards)
-        ax1.set_xlabel("Delta value")
+        plt.plot(delta_range, episode_rewards, marker="rx")
+        plt.xlabel("Delta value")
         plt.ylabel("Episode rewards")
         plt.show()
 

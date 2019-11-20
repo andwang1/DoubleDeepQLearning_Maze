@@ -66,8 +66,14 @@ class Agent:
         # Take one step in the environment, using this continuous action, based on the agent's current state. This returns the next state, and the new distance to the goal from this new state. It also draws the environment, if display=True was set when creating the environment object..
         next_state, _ = self.environment.step(self.state, continuous_action)
 
+        # # Penalty for running into walls or obstacles
+        # if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+        #     reward = -0.23
+        # else:
+        #     reward = 1 - np.linalg.norm(next_state - self.environment.goal_state)
+
         # Penalty for running into walls or obstacles
-        if np.linalg.norm(next_state - self.state) < 0.0001 and self.return_final_distance(next_state, "e") > 0.15:
+        if np.linalg.norm(next_state - self.state) < 0.0001:
             reward = -0.23
         else:
             reward = 1 - np.linalg.norm(next_state - self.environment.goal_state)
@@ -95,6 +101,19 @@ class Agent:
         # Penalty for running into walls or obstacles
         if self.return_final_distance(next_state, "m") <= 0.05:
             reward = 1
+            # print("0.1")
+        # elif self.return_final_distance(next_state, "m") <= 0.46:
+        #     reward = 0.2
+        # elif self.return_final_distance(next_state, "m") <= 0.40:
+        #     reward = 0.3
+        # elif self.return_final_distance(next_state, "m") <= 0.30:
+        #     reward = 0.4
+        # elif self.return_final_distance(next_state, "m") <= 0.20:
+        #     reward = 0.5
+        # elif self.return_final_distance(next_state, "m") <= 0.10:
+        #     reward = 0.6
+        # elif self.return_final_distance(next_state, "m") <= 0.05:
+        #     reward = 0.8
         else:
             reward = 0
 
@@ -281,7 +300,7 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = True
+    plot_loss = False
     plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
@@ -446,11 +465,12 @@ if __name__ == "__main__":
             greedy_action = dqn_new.return_greedy_action(current_state)
             transition_new = agent_new.step(greedy_action)
             print(transition_old)
-            print(transition_new)
+            # print(transition_new)
 
-        pv_old = PathVisualisation(1000)
-        pv_old.draw(state_path_old, True, True)
-        time.sleep(15)
+        # pv_old = PathVisualisation(1000)
+        # pv_old.draw(state_path_old, True, True)
+        # time.sleep(15)
         pv_new = PathVisualisation(1000)
-        pv_new.draw(state_path_new, True, True)
+        pv_new.draw(state_path_new, False, False)
+
         time.sleep(15)

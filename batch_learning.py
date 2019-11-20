@@ -176,9 +176,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = True
-    plot_qvalues = False
-    plot_state_path = False
+    plot_loss = False
+    plot_qvalues = True
+    plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -290,5 +290,5 @@ if __name__ == "__main__":
             print(transition)
 
         pv = PathVisualisation(1000)
-        pv.draw(state_path, True)
+        pv.draw(state_path, False, False)
         time.sleep(15)

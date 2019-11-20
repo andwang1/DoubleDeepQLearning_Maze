@@ -22,9 +22,10 @@ import collections
 
 # The Network class inherits the torch.nn.Module class, which represents a neural network.
 class Network(torch.nn.Module):
-    # The class initialisation function. This takes as arguments the dimension of the network's input (i.e. the dimension of the state), and the dimension of the network's output (i.e. the dimension of the action).
     def __init__(self, input_dimension, output_dimension):
         super(Network, self).__init__()
+
+        # 3 not fully connected layers to allow learning separation of map areas
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200)
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
@@ -33,6 +34,8 @@ class Network(torch.nn.Module):
         self.layer_6 = torch.nn.Linear(in_features=200, out_features=100)
         self.layer_7 = torch.nn.Linear(in_features=200, out_features=100)
         self.output_layer = torch.nn.Linear(in_features=300, out_features=output_dimension)
+
+        # Initialise weights
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.layer_3.weight)
@@ -42,6 +45,7 @@ class Network(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     def forward(self, input):
+        # Forward through layers and concatenate for final output layer
         layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
         layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
         layer_3_output = torch.nn.functional.relu(self.layer_3(layer_1_output))
@@ -49,7 +53,7 @@ class Network(torch.nn.Module):
         layer_5_output = torch.nn.functional.relu(self.layer_5(layer_2_output))
         layer_6_output = torch.nn.functional.relu(self.layer_6(layer_3_output))
         layer_7_output = torch.nn.functional.relu(self.layer_7(layer_4_output))
-        layer_concat = torch.cat((layer_7_output, layer_5_output, layer_6_output), dim=1)
+        layer_concat = torch.cat((layer_5_output, layer_6_output, layer_7_output), dim=1)
         output = self.output_layer(layer_concat)
         return output
 
@@ -154,10 +158,8 @@ class Agent:
                 else:
                     action = np.random.randint(8)
 
-        # If we have reached the goal once, explore a bit more of the starting area before we start training  #TODO
+        # If we have reached the goal once, explore a bit more of the starting area before we start training
         elif self.initial_area_exploration:
-            print("initial AREA") # TODO
-
             self.episode_length = 600
             action = np.random.randint(8)
             self.done_initial_area_exploration = True
@@ -181,14 +183,13 @@ class Agent:
             # If we are not close enough to the goal, we will restart exploration
             if distance_to_goal > self.exploration_min_distance and \
                     self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
-                # End the episode
-                self.episode_length = self.num_steps_taken
-
                 # Clean the accumulated buffers
                 self.replay_buffer.clear()
                 self.replay_buffer.distance_errors.clear()
                 self.replay_buffer.length = 0
                 self.replay_buffer.wrap_around_index = 0
+
+                # End the episode
 
             # If we are close enough to the goal, we will start training after a final set of exploration
             if distance_to_goal < self.random_exploration_distance_to_goal_threshhold:
@@ -200,11 +201,13 @@ class Agent:
                 if self.fully_random_exploration:
                     self.episode_length = self.num_steps_taken
 
+        # Record whether agent got stuck on the last move
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
         else:
             self.got_stuck = False
 
+        # Sparse rewards
         if distance_to_goal < 0.03:
             reward = 1
         elif distance_to_goal < 0.05:

@@ -80,6 +80,7 @@ class PathVisualisation:
             cv2.circle(self.image, goal_centre, goal_radius, goal_colour, cv2.FILLED)
 
         # Show the image
+        cv2.imwrite("batch_learning.png", self.image)
         cv2.imshow("Environment", self.image)
         # This line is necessary to give time for the image to be rendered on the screen
         cv2.waitKey(1)
