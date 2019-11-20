@@ -67,8 +67,7 @@ class Agent:
 
         # Set random exploration episode length
         self.random_exploration_episode_length = 400
-        self.random_exploration_step_size = 0.02
-        self.steps_made_in_exploration = self.random_exploration_episode_length * 5
+        self.steps_made_in_exploration = self.random_exploration_episode_length * 6
 
         self.training_threshhold = self.random_exploration_episode_length
 
@@ -80,20 +79,16 @@ class Agent:
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
         self.buffer_size = 400000 # TODO
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
-        # Step size for each step
-        self.step_length = 0.02
 
         # DQN
-        self.dqn = DQN(self.step_length, self.batch_size, replay_buffer_size=self.buffer_size)
+        self.dqn = DQN(self.batch_size, replay_buffer_size=self.buffer_size)
         self.dqn.copy_weights_to_target_dqn()
         self.dqn.episode_length = self.episode_length
         self.dqn.steps_copy_target = self.episode_length
         self.dqn.steps_made_in_exploration = self.steps_made_in_exploration
         self.dqn.replay_buffer = self.replay_buffer
 
-        self.repeat_episode = True
         self.got_stuck = False
-        self.is_not_initalisation_run = False
 
         # 8 actions
         self.actions = np.array([[-0.02, 0],
@@ -108,13 +103,9 @@ class Agent:
 
     # Function to check whether the agent has reached the end of an episode
     def has_finished_episode(self):
-
         if self.num_steps_taken % self.episode_length == 0:
-            self.episode_counter += 1 # A BIT HACK TODO
-            print(self.episode_counter)
+            self.episode_counter += 1
             self.steps_taken_in_episode = 0
-            self.is_not_initalisation_run = True
-            self.repeat_episode = True
             self.got_stuck = False
             return True
         else:
@@ -125,11 +116,11 @@ class Agent:
         # RANDOM EXPLORATION IN BEGINNING
         is_greedy = False # TODO REMOVE IS GREEDY FROM RETURN
         # while we are in the number of steps try every direction and if get stuck in less than 8 end episode
-        if self.num_steps_taken < self.steps_made_in_exploration - self.random_exploration_episode_length:
+        if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
             direction = (self.episode_counter - 1) % 8
             # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
-            if self.steps_taken_in_episode < 8 and self.got_stuck:
+            if self.steps_taken_in_episode < 9 and self.got_stuck:
                 self.repeat_episode = False
                 self.episode_length = self.num_steps_taken + 1
                 action = np.random.randint(8)
@@ -137,10 +128,6 @@ class Agent:
                 action = direction
             else:
                 action = np.random.randint(8)
-
-        elif self.num_steps_taken < self.steps_made_in_exploration:
-            action = np.random.randint(8)
-
         else:
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
@@ -203,53 +190,42 @@ class Agent:
 class DQN:
     gamma = .95
     # The class initialisation function.
-    def __init__(self, step_length, batch_size, replay_buffer_size, angles_between_actions=2):
-        # Create a Q-network, which predicts the q-value for a particular state.
+    def __init__(self, batch_size, replay_buffer_size):
         self.q_network = Network(input_dimension=2, output_dimension=8)
         self.target_q_network = Network(input_dimension=2, output_dimension=8)
-
-        # Define the optimiser which is used when updating the Q-network. The learning rate determines how big each gradient step is during backpropagation.
         self.optimiser = torch.optim.Adam(self.q_network.parameters(), lr=0.001)
-        # Step size for each step
-        self.step_length = step_length  # TODO here decide whether to normalise and if what size of normalisation
+
         # Batch size used in the replay_buffer
+        self.replay_buffer = None
         self.batch_size = batch_size # TODO update if change the batch size in replay buffer
         self.replay_buffer_size = replay_buffer_size # TODO FEED IN REPLAY BUFFER DIRECTLY
 
-        # Access to the same replay buffer
-        self.replay_buffer = None
+        # Episode length
+        self.episode_length = None
+        self.episode_counter = 0
+        self.steps_copy_target = self.episode_length
+
         # Epsilon
         self.epsilon = 0.8 # TODO
         self.steps_increase_epsilon = 15
-
-        # Episode length
-        self.episode_length = None
-        self.steps_copy_target = self.episode_length
-        self.episode_counter = 0
 
         # is greedy
         self.is_greedy = False
         self.epsilon_maxed = False
 
         # # Epsilon linear in episode length
-        self.epsilon_decrease = 0.0002
+        self.is_epsilon_delta = True
+        self.is_epsilon_greedy = False
+
         self.start_epsilon_delta = 0.5
         self.start_epsilon_greedy = 0.2
-        self.is_epsilon_delta = False
-        self.is_epsilon_greedy = True
+
+        self.epsilon_decrease = 0.0002
         self.epsilon_increase = 0.003
+
         self.steps_made_in_exploration = 0
         self.greedy_counter = 0
 
-    def copy_weights_to_target_dqn(self):
-        self.target_q_network.load_state_dict(self.q_network.state_dict())
-
-    def epsilon_greedy_policy(self, greedy_action):
-        print("EPS", self.epsilon)
-        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
-            return np.random.randint(0, 8), False
-        else:
-            return greedy_action, True
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
         # Update target network
@@ -282,10 +258,12 @@ class DQN:
         # increase epsilon later as we go through episodes and hopefully know more about the initial areas
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
+
             if self.is_epsilon_greedy:
                 self.greedy_counter += 1
                 self.epsilon = self.start_epsilon_greedy
                 self.steps_increase_epsilon += 2
+
             if self.greedy_counter == 3:
                 self.is_epsilon_delta = True
                 self.epsilon = self.start_epsilon_delta
@@ -299,7 +277,7 @@ class DQN:
         # Linear Epsilon Delta Decrease
             if self.is_epsilon_delta:
                 self.epsilon -= self.epsilon_decrease
-                if self.epsilon <= 0.2:
+                if self.epsilon <= 0.3:
                     self.is_epsilon_delta = False
                     self.is_epsilon_greedy = True
 
@@ -339,6 +317,16 @@ class DQN:
 
         tensor_next_state_values = torch.gather(tensor_target_network_predictions, 1, tensor_greedy_actions)
         return tensor_next_state_values
+
+    def copy_weights_to_target_dqn(self):
+        self.target_q_network.load_state_dict(self.q_network.state_dict())
+
+    def epsilon_greedy_policy(self, greedy_action):
+        print("EPS", self.epsilon)
+        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+            return np.random.randint(0, 8), False
+        else:
+            return greedy_action, True
 
 class ReplayBuffer:
     def __init__(self, max_capacity, batch_size=50):
