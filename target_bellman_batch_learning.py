@@ -230,7 +230,7 @@ if __name__ == "__main__":
     # initialise target network to same weights as our q network
     dqn.copy_weights_to_target_dqn()
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
 
@@ -277,13 +277,13 @@ if __name__ == "__main__":
         plt.ylabel("Loss")
         plt.title("Target Network Learning - Gamma = 0.9")
         # Time axis
-        ax2 = ax1.twiny()
-        time_labels_per_episode = time_steps
-        time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
-        ax2.set_xticks(time_labels_positions)
-        ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (in ms)')
-        ax2.set_xlim(ax1.get_xlim())
+        # ax2 = ax1.twiny()
+        # time_labels_per_episode = time_steps
+        # time_labels_positions = range(0, len(losses) + rb_batch_size, rb_batch_size)
+        # ax2.set_xticks(time_labels_positions)
+        # ax2.set_xticklabels(time_labels_per_episode)
+        # ax2.set_xlabel('Time (in ms)')
+        # ax2.set_xlim(ax1.get_xlim())
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):

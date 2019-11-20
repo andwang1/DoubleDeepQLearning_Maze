@@ -58,7 +58,7 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 150 # 250 TODO
+        self.episode_length = 100 # 250 TODO
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
