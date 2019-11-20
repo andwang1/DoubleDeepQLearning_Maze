@@ -36,23 +36,29 @@ class Network(torch.nn.Module):
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
-        self.layer_5 = torch.nn.Linear(in_features=200, out_features=200)
-        self.output_layer = torch.nn.Linear(in_features=200, out_features=output_dimension)
+        self.layer_5 = torch.nn.Linear(in_features=200, out_features=100)
+        self.layer_6 = torch.nn.Linear(in_features=200, out_features=100)
+        self.layer_7 = torch.nn.Linear(in_features=200, out_features=100)
+        self.output_layer = torch.nn.Linear(in_features=300, out_features=output_dimension)
         torch.nn.init.xavier_uniform_(self.layer_1.weight)
         torch.nn.init.xavier_uniform_(self.layer_2.weight)
         torch.nn.init.xavier_uniform_(self.layer_3.weight)
         torch.nn.init.xavier_uniform_(self.layer_4.weight)
         torch.nn.init.xavier_uniform_(self.layer_5.weight)
+        torch.nn.init.xavier_uniform_(self.layer_6.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
         layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
-        layer_2_output = torch.nn.functional.leaky_relu(self.layer_2(layer_1_output))
-        layer_3_output = torch.nn.functional.leaky_relu(self.layer_3(layer_2_output))
-        layer_4_output = torch.nn.functional.leaky_relu(self.layer_4(layer_3_output))
-        layer_5_output = torch.nn.functional.leaky_relu(self.layer_5(layer_4_output))
-        output = self.output_layer(layer_5_output)
+        layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
+        layer_3_output = torch.nn.functional.relu(self.layer_3(layer_1_output))
+        layer_4_output = torch.nn.functional.relu(self.layer_4(layer_1_output))
+        layer_5_output = torch.nn.functional.relu(self.layer_5(layer_2_output))
+        layer_6_output = torch.nn.functional.relu(self.layer_6(layer_3_output))
+        layer_7_output = torch.nn.functional.relu(self.layer_7(layer_4_output))
+        layer_concat = torch.cat((layer_7_output, layer_5_output, layer_6_output), dim=1)
+        output = self.output_layer(layer_concat)
         return output
 
 
@@ -61,7 +67,7 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 200 # TODO SCALE WITH TIME?
+        self.episode_length = 350 # Need long to reach goal early
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
@@ -77,7 +83,7 @@ class Agent:
 
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = 35 * self.episode_length + self.steps_made_in_exploration  # TODO
+        self.buffer_size = 400000 # no effect when have a good solution and keep going back to goal, make this smaller
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # DQN
@@ -107,6 +113,13 @@ class Agent:
             self.episode_counter += 1
             self.steps_taken_in_episode = 0
             self.got_stuck = False
+
+            # Decrease episode length every time we reach the goal
+            if self.dqn.has_reached_goal_previous_episode:
+                print("DECREASING EP LENGTH")
+                self.episode_length -= 5
+                self.episode_length = max(100, self.episode_length)
+
             return True
         else:
             return False
@@ -121,10 +134,9 @@ class Agent:
             direction = (self.episode_counter - 1) % 8
             # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
             if self.steps_taken_in_episode < 9 and self.got_stuck:
-                self.repeat_episode = False
                 self.episode_length = self.num_steps_taken + 1
                 action = np.random.randint(8)
-            elif self.steps_taken_in_episode < 20 and not self.got_stuck:
+            elif self.steps_taken_in_episode < 25 and not self.got_stuck:
                 action = direction
             else:
                 action = np.random.randint(8)
@@ -146,28 +158,26 @@ class Agent:
             self.got_stuck = True
         else:
             self.got_stuck = False
-        if distance_to_goal < 0.01:
-            reward = 200
-        elif distance_to_goal < 0.03:
-            reward = 100
-        elif distance_to_goal < 0.05:
-            reward = 20
-        elif distance_to_goal < 0.1:
-            reward = 10
-        elif distance_to_goal < 0.2:
-            reward = 7
-        elif distance_to_goal < 0.3:
-            reward = 5
-        elif distance_to_goal < 0.4:
-            reward = 4
-        elif distance_to_goal < 0.5:
-            reward = 3
-        elif distance_to_goal < 0.6:
-            reward = 2
-        elif distance_to_goal < 0.7:
+        if distance_to_goal < 0.03:
             reward = 1
-        elif distance_to_goal < 0.8:
+        elif distance_to_goal < 0.05:
             reward = 0.5
+        elif distance_to_goal < 0.1:
+            reward = 0.1
+        elif distance_to_goal < 0.2:
+            reward = 0.07
+        elif distance_to_goal < 0.3:
+            reward = 0.05
+        elif distance_to_goal < 0.4:
+            reward = 0.04
+        elif distance_to_goal < 0.5:
+            reward = 0.03
+        elif distance_to_goal < 0.6:
+            reward = 0.02
+        elif distance_to_goal < 0.7:
+            reward = 0.01
+        elif distance_to_goal < 0.8:
+            reward = 0.005
         else:
             reward = 0
         if reward > 0:
@@ -188,7 +198,6 @@ class Agent:
         return self.actions[self.dqn.return_greedy_action(state)]
 
 
-# The DQN class determines how to train the above neural network.
 class DQN:
     gamma = .95
 
@@ -221,9 +230,9 @@ class DQN:
         self.is_epsilon_greedy = False
 
         self.start_epsilon_delta = 0.5
-        self.start_epsilon_greedy = 0.2
+        self.start_epsilon_greedy = 0.3
 
-        self.epsilon_decrease = 0.0002
+        self.epsilon_decrease = 0.00015
         self.epsilon_increase = 0.001
 
         self.steps_made_in_exploration = 0
@@ -231,38 +240,40 @@ class DQN:
 
         self.has_reached_goal_previous_episode = False
 
+        self.all_actions = set(range(8))
+
 
     def epsilon_greedy_policy(self, greedy_action):
         print("EPS", self.epsilon)
         # If we are in end exploration mode in epsilon greedy part
         if self.epsilon <= -90:
-            # time.sleep(5)
+            time.sleep(.5)
             print("enter loop")
             print("greedy action", greedy_action)
             if greedy_action == 2: # DOWN
                 likely_next_actions = [3, 4, 5, 6]
-                if np.random.randint(0, 100) in range(80):
+                if np.random.randint(0, 100) in range(90):
                     return np.random.choice(likely_next_actions), False
                 else:
                     return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
 
             if greedy_action == 3: # DIAG DOWN RIGHT
                 likely_next_actions = [6, 5]
-                if np.random.randint(0, 100) in range(80):
+                if np.random.randint(0, 100) in range(90):
                     return np.random.choice(likely_next_actions), False
                 else:
                     return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
 
             if greedy_action == 4: # RIGHT
                 likely_next_actions = [6, 5, 4, 3]
-                if np.random.randint(0, 100) in range(80):
+                if np.random.randint(0, 100) in range(90):
                     return np.random.choice(likely_next_actions), False
                 else:
                     return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
 
-            if greedy_action == 5:
+            if greedy_action == 5: # DIAG UP
                 likely_next_actions = [2, 3]
-                if np.random.randint(0, 100) in range(80):
+                if np.random.randint(0, 100) in range(90):
                     if np.random.randint(0, 100) in range(70):
                         return 2, False
                     else:
@@ -270,7 +281,7 @@ class DQN:
                 else:
                     return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
 
-            if greedy_action == 6:
+            if greedy_action == 6: # UP
                 likely_next_actions = [2, 3, 4, 5]
                 if np.random.randint(0, 100) in range(80):
                     return np.random.choice(likely_next_actions), False
@@ -284,12 +295,11 @@ class DQN:
             # Standard epsilon greedy
             if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
                 random_action = np.random.randint(0, 8)
-                while random_action == greedy_action:
-                    random_action = np.random.randint(0, 8)
+                # while random_action == greedy_action:
+                #     random_action = np.random.randint(0, 8)
                 return random_action, False
             else:
                 return greedy_action, True
-
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck, distance_to_goal):
         if step_number % self.steps_copy_target == 0:
@@ -345,7 +355,10 @@ class DQN:
         if step_number > self.steps_made_in_exploration:
             # Linear Epsilon Delta Decrease
             if self.is_epsilon_delta:
-                self.epsilon -= self.epsilon_decrease
+                if self.epsilon < 0.4:
+                    self.epsilon -= self.epsilon_decrease
+                else:
+                    self.epsilon -= 0.0001
                 if self.epsilon <= 0.2:
                     self.is_epsilon_delta = False
                     self.is_epsilon_greedy = True
@@ -355,14 +368,12 @@ class DQN:
                 self.epsilon += self.epsilon_increase
                 if self.episode_counter > 20:
                     if self.episode_length - step_in_episode == 50 and distance_to_goal > 0.3:  # increase steps TODO
-                        self.epsilon = -99
-                    if self.episode_length - step_in_episode == 15 and distance_to_goal > 0.3:
-                        self.epsilon = 0.8
-                    if self.episode_length - step_in_episode < 15:
-                        self.epsilon -= 0.025
+                        self.epsilon = 0.50
+                    # if self.episode_length - step_in_episode < 15:
+                    #     self.epsilon -= 0.025
 
         self.epsilon = min(1, self.epsilon)  # set max ccap at 0.8 TODO
-        self.epsilon = max(0, self.epsilon)
+        # self.epsilon = max(0, self.epsilon)
 
         if distance_to_goal < 0.03:
             self.has_reached_goal_previous_episode = True
@@ -396,13 +407,6 @@ class DQN:
     def copy_weights_to_target_dqn(self):
         self.target_q_network.load_state_dict(self.q_network.state_dict())
 
-    def epsilon_greedy_policy(self, greedy_action):
-        print("EPS", self.epsilon)
-        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
-            return np.random.randint(0, 8), False
-        else:
-            return greedy_action, True
-
 
 class ReplayBuffer:
     def __init__(self, max_capacity, batch_size=50):
@@ -425,11 +429,7 @@ class ReplayBuffer:
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
-    def generate_batch(self, batch_size=False):
-        # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
-        if not batch_size:
-            batch_size = self.batch_size
-
+    def generate_batch(self, batch_size):
         # Adding a min probability constant to make sure transitions with small errors are still selected
         min_probability_constant = 0.5  # TODO
 
@@ -449,10 +449,12 @@ class ReplayBuffer:
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
         indices[-1] = self.length - 1
+
         for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
             actions.append([self.replay_buffer[index][1]])  # 1x1
             rewards.append([self.replay_buffer[index][2]])  # 1x1
             next_states.append(self.replay_buffer[index][3])  # 1x2
-        return torch.tensor(current_states).float(), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
-            next_states).float(), indices  # MSE needs float values, so cast rewards to floats
+
+        return torch.tensor(current_states).float(), torch.tensor(actions), \
+               torch.tensor(rewards).float(), torch.tensor(next_states).float(), indices
