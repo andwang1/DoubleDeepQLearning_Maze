@@ -158,7 +158,6 @@ class Agent:
             else:
                 action = np.random.randint(8)
         elif self.initial_area_exploration:
-            print("INITIAL RANDOM")
             # self.goal_exploration_step_size = False
             self.episode_length = 200
             action = np.random.randint(8)
@@ -184,7 +183,6 @@ class Agent:
             if distance_to_goal > 0.8 and self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
                 self.episode_length = self.num_steps_taken
                 self.replay_buffer.clear()
-                self.replay_buffer.transition_td_errors.clear()
                 self.replay_buffer.distance_errors.clear()
                 self.replay_buffer.length = 0
                 self.replay_buffer.wrap_around_index = 0
@@ -218,16 +216,15 @@ class Agent:
             reward = 0.03
         elif distance_to_goal < 0.6:
             reward = 0.02
-        elif distance_to_goal < 0.7:
-            reward = 0.01
-        elif distance_to_goal < 0.8:
-            reward = 0.005
+        # elif distance_to_goal < 0.7:
+        #     reward = 0.01
+        # elif distance_to_goal < 0.8:
+        #     reward = 0.005
         else:
             reward = 0
         # reward = 1 - distance_to_goal
         if reward > 0:
             print("reward", reward)
-
 
         # Add new weight of 1 for the newest transition, we will make sure this gets picked manually by adding to batch
         # Cannot make this 0 for some reason will give error ValueError: probabilities contain NaN
@@ -249,20 +246,16 @@ class Agent:
         transition = (self.state, self.action, reward, next_state)
         self.replay_buffer.add(transition)
 
-
         # Train
-        # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
         if self.start_training:
             if self.first_train:
                 for i in range(2000):
                     print("first train", i)
-                    # print("enters first train loop")
                     # TODO try bigger batch with multiple selections and replace?
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size),
                                                    self.num_steps_taken,
                                                    self.got_stuck, distance_to_goal)
                 self.first_train = False
-                # raise
 
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
                                            self.got_stuck, distance_to_goal)
@@ -292,21 +285,12 @@ class DQN:
 
         # Epsilon
         self.epsilon = 0.5  # TODO
-        self.steps_increase_epsilon = 15
         self.saved_epsilon = self.epsilon
 
-        # is greedy
-        self.is_greedy = False
-        self.epsilon_maxed = False
         self.used_saved_epsilon = False
-
-        # # Epsilon linear in episode length
-        self.is_epsilon_delta = True
-        self.is_epsilon_greedy = False
 
         self.start_epsilon_delta = 0.55
         self.end_epsilon_delta = 0.3
-        self.start_epsilon_greedy = 0.3
 
         self.epsilon_decrease = 0.00003 # MAKE LOWER
         self.epsilon_increase = 0.001
@@ -315,73 +299,23 @@ class DQN:
 
         self.has_reached_goal_previous_episode = False
 
-        self.all_actions = set(range(8))
-
 
     def epsilon_greedy_policy(self, greedy_action):
-        # If we are in end exploration mode in epsilon greedy part
-        if self.epsilon <= -90:
-            time.sleep(.5)
-            print("enter loop")
-            print("greedy action", greedy_action)
-            if greedy_action == 2: # DOWN
-                likely_next_actions = [3, 4, 5, 6]
-                if np.random.randint(0, 100) in range(90):
-                    return np.random.choice(likely_next_actions), False
-                else:
-                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
-
-            if greedy_action == 3: # DIAG DOWN RIGHT
-                likely_next_actions = [6, 5]
-                if np.random.randint(0, 100) in range(90):
-                    return np.random.choice(likely_next_actions), False
-                else:
-                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
-
-            if greedy_action == 4: # RIGHT
-                likely_next_actions = [6, 5, 4, 3]
-                if np.random.randint(0, 100) in range(90):
-                    return np.random.choice(likely_next_actions), False
-                else:
-                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
-
-            if greedy_action == 5: # DIAG UP
-                likely_next_actions = [2, 3]
-                if np.random.randint(0, 100) in range(90):
-                    if np.random.randint(0, 100) in range(70):
-                        return 2, False
-                    else:
-                        return 3, False
-                else:
-                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
-
-            if greedy_action == 6: # UP
-                likely_next_actions = [2, 3, 4, 5]
-                if np.random.randint(0, 100) in range(80):
-                    return np.random.choice(likely_next_actions), False
-                else:
-                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
-
-            # If its optimal to go any other way TODO? WRITE OUT ALL ACTIONS IF IT WORKS
-            return np.random.randint(8), False
-
+        print(self.epsilon)
+        if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+            random_action = np.random.randint(0, 8)
+            # while random_action == greedy_action:
+            #     random_action = np.random.randint(0, 8)
+            return random_action, False
         else:
-            # Standard epsilon greedy
-            print("EXEC EPS GREEDY", self.epsilon)
-            if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
-                random_action = np.random.randint(0, 8)
-                # while random_action == greedy_action:
-                #     random_action = np.random.randint(0, 8)
-                return random_action, False
-            else:
-                return greedy_action, True
+            return greedy_action, True
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck, distance_to_goal):
         if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
 
         self.optimiser.zero_grad()
-        tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states, buffer_indices = transitions
+        tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states = transitions
         network_predictions = self.q_network.forward(tensor_current_states)
 
         tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions.long())
@@ -395,13 +329,6 @@ class DQN:
 
         self.optimiser.step()
 
-        # Update the TD errors of the transitions we used
-        # td_error = np.abs(
-        #     (tensor_bellman_current_state_value - tensor_predicted_q_value_current_state).detach().numpy()).ravel()
-        # for index, error in zip(buffer_indices, td_error):
-        #     self.replay_buffer.transition_td_errors[index] = error
-        #
-        # print("td", step_number, np.mean(td_error))
         print(self.episode_counter)
 
         # increase epsilon later as we go through episodes and hopefully know more about the initial areas
@@ -415,33 +342,15 @@ class DQN:
                 self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
                 # self.end_epsilon_delta = max(self.end_epsilon_delta, 0.05)
 
-            # if self.epsilon <= 0.2:
-            #     self.epsilon = self.start_epsilon_delta
-            # elif self.used_saved_epsilon is not False:
-            #     self.epsilon = self.saved_epsilon
 
-            # self.saved_epsilon = False
-            # self.used_saved_epsilon = False
-
-        step_in_episode = step_number % self.episode_length
-
-        # Do not do any of this if we are still in random exploration phase
         # Linear Epsilon Delta Decrease
         if self.epsilon > 0.4:
             self.epsilon -= self.epsilon_decrease
         else:
             self.epsilon -= 0.0001
-            # if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
-            #     if self.saved_epsilon is False:
-            #         self.saved_epsilon = self.epsilon
-            #     self.used_saved_epsilon = True
-            #     self.epsilon = 0.5
 
         if self.epsilon < self.end_epsilon_delta:
             self.epsilon = self.start_epsilon_delta
-
-
-        # self.epsilon = max(0, self.epsilon)
 
         if distance_to_goal < 0.03:
             self.has_reached_goal_previous_episode = True
@@ -489,12 +398,10 @@ class ReplayBuffer:
         self.min_distance = 2
 
         # Weights are calculated from the TD errors
-        self.transition_td_errors = collections.deque(maxlen=self.buffer_max_len)
         self.distance_errors = collections.deque(maxlen=self.buffer_max_len) # THIS NEEDS TO BE NP ARRAY INSTEAD after reached goal convert to np array
         self.distance_errors_array = np.empty(self.buffer_max_len)
 
         self.indices = np.zeros(self.batch_size + 1).astype(int)
-
 
     def __len__(self):
         return len(self.replay_buffer)
@@ -515,23 +422,13 @@ class ReplayBuffer:
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
     def generate_batch(self, batch_size):
-        # Adding a min probability constant to make sure transitions with small errors are still selected
         # Distance weights
-        # Calculate weights by iterating through array
-        # print("before indices")
         indices = []
-        # print(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True))
-        # print(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2))
         for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
-            # print(self.length)
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-            # print(samples_at_distance)
             while len(samples_at_distance) == 0:
-                # print("whileloop")
                 distance = round(distance - 0.01, 2)
-                # print(distance)
                 samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-                # print(samples_at_distance)
             # try: # DOUBLE BATCH
             #     indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
             # except:
@@ -539,28 +436,16 @@ class ReplayBuffer:
             #     indices.append(np.random.choice(samples_at_distance))
             indices.append(np.random.choice(samples_at_distance))
 
-        # print("calculated indices")
-        # Normalise weights
-        # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
-        #         sum(self.transition_td_errors) + min_probability_constant * self.length)
+        indices.append(self.length - 1) # NEEDS OFFSET WHEN NP ARRAY
 
         current_states = []
         actions = []
         rewards = []
         next_states = []
 
-        # We generate random indices according to their TD error weights
-        # indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
-
         # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
-        indices.append(self.length - 1)
-
-        # print(indices)
-        # print(self.length)
-        # print(len(self.replay_buffer))
-        # print(len(self.distance_errors_array))
 
         for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
@@ -569,4 +454,4 @@ class ReplayBuffer:
             next_states.append(self.replay_buffer[index][3])  # 1x2
 
         return torch.tensor(current_states).float(), torch.tensor(actions), \
-               torch.tensor(rewards).float(), torch.tensor(next_states).float(), indices
+               torch.tensor(rewards).float(), torch.tensor(next_states).float()
