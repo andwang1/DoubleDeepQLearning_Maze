@@ -532,11 +532,12 @@ class ReplayBuffer:
                 # print(distance)
                 samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
                 # print(samples_at_distance)
-            try:
-                indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
-            except:
-                print("ONLY ONE SAMPLE AVAILABLE")
-                indices.append(np.random.choice(samples_at_distance))
+            # try: # DOUBLE BATCH
+            #     indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
+            # except:
+            #     print("ONLY ONE SAMPLE AVAILABLE")
+            #     indices.append(np.random.choice(samples_at_distance))
+            indices.append(np.random.choice(samples_at_distance))
 
         # print("calculated indices")
         # Normalise weights
