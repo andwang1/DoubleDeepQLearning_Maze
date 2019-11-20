@@ -235,10 +235,6 @@ class Agent:
         else:
             reward = 0
 
-        # TODO
-        if reward > 0:
-            print("reward", reward)
-
         # Store distances for the buffer to use
         distance_rounded = round(distance_to_goal, 2)
         # If we are no longer exploring, we are using the np.ndarray not the deque
@@ -327,6 +323,7 @@ class DQN:
         # Episode restart, set values for epsilon decay
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
+            print(self.episode_counter) # TODO
 
             # If we reached the goal the previous episode, we start and end at lower epsilons
             if self.has_reached_goal_previous_episode:
