@@ -210,7 +210,7 @@ if __name__ == "__main__":
     # Reset so time starts at 0, take the time equal to 0 before the first training
     time_steps = np.array(time_steps)
     time_steps = time_steps - time_steps[0]
-    print(time_steps)
+    # print(time_steps)
     rb_batch_size = 50
 
     if plot_loss:

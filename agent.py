@@ -58,12 +58,12 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 200 # 250 TODO
+        self.episode_length = 150 # 250 TODO
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
+        self.random_exploration_episode_length = 6000 # MAKE SHORTER so less imbalance? add one full random again?
         self.stop_exploration = False
         self.steps_exploration_episode_cutoff = 300
         self.initial_area_exploration = True
@@ -129,7 +129,8 @@ class Agent:
         # Random exploration in beginning, try every direction
         if not self.stop_exploration:
             # If we cannot find a quick way out of the starting area we need to explore fully randomly
-            if self.episode_counter > 50:
+            if self.episode_counter > 400:
+                print(self.episode_counter)
                 action = np.random.randint(8)
                 self.steps_exploration_episode_cutoff = 200
             else:
@@ -213,7 +214,7 @@ class Agent:
         if reward > 0:
             print("reward", reward)
 
-        # Store the distances for the buffer to use, not used in agent
+        # Store rewards (distances) for the buffer to use as weights, not used in agent
         distance_rounded = round(distance_to_goal, 2)
         if self.stop_exploration:
             # array_index = self.replay_buffer.wrap_around_index % self.replay_buffer.buffer_max_len
@@ -315,7 +316,7 @@ class DQN:
                 self.end_epsilon_delta -= 0.01
                 self.has_reached_goal_previous_episode = False
                 self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
-                # self.end_epsilon_delta = max(self.end_epsilon_delta, 0.05)
+                self.end_epsilon_delta = max(self.end_epsilon_delta, 0.02) # TODO REVIEW
 
         # Linear Epsilon Delta Decrease
         if self.epsilon > 0.4:
@@ -394,9 +395,10 @@ class ReplayBuffer:
         indices = []
         for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-            while len(samples_at_distance) == 0:
+            while len(samples_at_distance) == 0: #TODO SKIP INSTEAD?
+                print("isstuck")
                 distance = round(distance - 0.01, 2)
-                samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
+                samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
             # try: # DOUBLE BATCH
             #     indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
             # except:
