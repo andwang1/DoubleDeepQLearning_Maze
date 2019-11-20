@@ -254,7 +254,7 @@ class Agent:
         # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
         if self.start_training:
             if self.first_train:
-                for i in range(4000):
+                for i in range(2000):
                     print("first train", i)
                     # print("enters first train loop")
                     # TODO try bigger batch with multiple selections and replace?
