@@ -189,7 +189,7 @@ if __name__ == "__main__":
     time_steps = []
     initial_time = False
     while True:
-        if episode_counter == 25:
+        if episode_counter == 45:
             break
         episode_counter += 1
         # Reset the environment for the start of the episode.
@@ -235,7 +235,7 @@ if __name__ == "__main__":
         time_labels_positions.append(len(losses))
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (in ms)')
+        ax2.set_xlabel('Time (in ms) from first step')
         ax2.set_xlim(ax1.get_xlim())
 
         for step_num in range(0, len(losses), 20):

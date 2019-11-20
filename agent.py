@@ -65,7 +65,11 @@ class Agent:
         # Set random exploration episode length
         self.random_exploration_episode_length = 6000 # MAKE SHORTER so less imbalance? add one full random again?
         self.stop_exploration = False
+        self.fully_random_exploration = False
+        self.random_exploration_distance_to_goal_threshhold = 0.008
+
         self.steps_exploration_episode_cutoff = 300
+        self.exploration_min_distance = 0.8
         self.initial_area_exploration = True
         self.done_initial_area_exploration = False
         self.reached_goal = False
@@ -130,9 +134,13 @@ class Agent:
         if not self.stop_exploration:
             # If we cannot find a quick way out of the starting area we need to explore fully randomly
             if self.episode_counter > 400:
+                self.fully_random_exploration = True
+                self.exploration_min_distance = 1.1
+                self.random_exploration_distance_to_goal_threshhold = 0.12 # TODO
+                self.episode_length = 15000
                 print(self.episode_counter)
                 action = np.random.randint(8)
-                self.steps_exploration_episode_cutoff = 200
+                # TODO HERE ADD MORE REWARDS AT LOWER LEVELS TO SPEED UP?
             else:
                 self.episode_length = self.random_exploration_episode_length
                 direction = (self.episode_counter - 1) % 8
@@ -140,7 +148,7 @@ class Agent:
                 if self.steps_taken_in_episode < 9 and self.got_stuck:
                     # Break episode early
                     self.episode_length = self.num_steps_taken + 1
-                    action = 0
+                    action = 4
                 elif self.steps_taken_in_episode < 25 and not self.got_stuck:
                     action = direction
                 else:
@@ -171,7 +179,8 @@ class Agent:
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if not self.stop_exploration:
             # If we are not close enough to the goal, we will restart exploration
-            if distance_to_goal > 0.8 and self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
+            if distance_to_goal > self.exploration_min_distance and \
+                    self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
                 # End the episode
                 self.episode_length = self.num_steps_taken
 
@@ -182,9 +191,14 @@ class Agent:
                 self.replay_buffer.wrap_around_index = 0
 
             # If we are close enough to the goal, we will start training after a final set of exploration
-            if distance_to_goal < 0.008:
+            if distance_to_goal < self.random_exploration_distance_to_goal_threshhold:
                 self.reached_goal = True
                 self.replay_buffer.convert_deque_to_array()
+
+                # If we are already fully random, we have lost a lot of time, and episodes are long,
+                # stop immediately when reaching the goal
+                if self.fully_random_exploration:
+                    self.episode_length = self.num_steps_taken
 
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
@@ -207,6 +221,8 @@ class Agent:
             reward = 0.03
         elif distance_to_goal < 0.6: # TODO ADD MORE REWARDS FOR MORE DIFFICULT LEVELS?
             reward = 0.02
+        elif distance_to_goal < 0.7:
+            reward = 0.01
         else:
             reward = 0
 
@@ -393,12 +409,13 @@ class ReplayBuffer:
     def generate_batch(self, batch_size):
         # Distance weights
         indices = []
-        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
+        for distance in np.arange(self.min_distance, self.max_distance, 0.02):
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-            while len(samples_at_distance) == 0: #TODO SKIP INSTEAD?
-                print("isstuck")
-                distance = round(distance - 0.01, 2)
+            if len(samples_at_distance) == 0: # TODO TRY
+                distance = round(distance + 0.01, 2)
                 samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
+                if len(samples_at_distance) == 0:
+                    continue
             # try: # DOUBLE BATCH
             #     indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
             # except:

@@ -253,7 +253,7 @@ if __name__ == "__main__":
         # time_labels_positions.append(len(losses) + rb_batch_size - 1)
         ax2.set_xticks(time_labels_positions)
         ax2.set_xticklabels(time_labels_per_episode)
-        ax2.set_xlabel('Time (in ms)')
+        ax2.set_xlabel('Time (in ms) from first step')
         ax2.set_xlim(ax1.get_xlim())
 
         # Add vertical lines
