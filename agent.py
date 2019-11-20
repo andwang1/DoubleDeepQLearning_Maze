@@ -382,8 +382,6 @@ class ReplayBuffer:
         self.distance_errors = collections.deque(maxlen=self.buffer_max_len)
         self.distance_errors_array = np.empty(self.buffer_max_len)
 
-        self.indices = np.zeros(self.batch_size + 1).astype(int) # TODO MAKE INDICES MORE EFFICIENT CONSTANT BATCH SIZE
-
     def __len__(self):
         return len(self.replay_buffer)
 
@@ -412,7 +410,7 @@ class ReplayBuffer:
             indices.append(np.random.choice(samples_at_distance))
 
         # We add the last transition to the buffer so it is trained on for sure
-        indices.append(self.length - 1) # NEEDS OFFSET WHEN NP ARRAY
+        indices.append(self.length - 1)
 
         current_states = []
         actions = []
