@@ -17,13 +17,14 @@
 
 """"NP CONCAT IS SLOW"""
 
-
 import numpy as np
 import torch
 import collections
 from path_visualisation import PathVisualisation
 
-import time #TODO
+import time  # TODO
+
+
 # The Network class inherits the torch.nn.Module class, which represents a neural network.
 class Network(torch.nn.Module):
     # The class initialisation function. This takes as arguments the dimension of the network's input (i.e. the dimension of the state), and the dimension of the network's output (i.e. the dimension of the action).
@@ -31,7 +32,7 @@ class Network(torch.nn.Module):
         # Call the initialisation function of the parent class.
         super(Network, self).__init__()
         # Define the network layers. This example network has two hidden layers, each with 100 units.
-        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200) #OVERFITTING?
+        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200)  # OVERFITTING?
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
@@ -60,8 +61,7 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        # Set the episode length (you will need to increase this)
-        self.episode_length = 200 # 100 is the episode they will run at TODO SCALE WITH TIME?
+        self.episode_length = 200 # TODO SCALE WITH TIME?
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
@@ -77,7 +77,7 @@ class Agent:
 
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = 40 * self.episode_length + self.steps_made_in_exploration # TODO
+        self.buffer_size = 40 * self.episode_length + self.steps_made_in_exploration  # TODO
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # DQN
@@ -112,9 +112,9 @@ class Agent:
             return False
 
     # THIS GETS CALLED FIRST HERE NEED TO IMPLEMENT EPSILON GREEDY
-    def get_next_action(self, state: np.ndarray):   # TODO REMOVE IS GREEDY FROM RETURN
+    def get_next_action(self, state: np.ndarray):  # TODO REMOVE IS GREEDY FROM RETURN
         # RANDOM EXPLORATION IN BEGINNING
-        is_greedy = False # TODO REMOVE IS GREEDY FROM RETURN
+        is_greedy = False  # TODO REMOVE IS GREEDY FROM RETURN
         # while we are in the number of steps try every direction and if get stuck in less than 8 end episode
         if self.num_steps_taken < self.steps_made_in_exploration:
             self.episode_length = self.random_exploration_episode_length
@@ -130,14 +130,15 @@ class Agent:
                 action = np.random.randint(8)
         else:
             self.episode_length = self.actual_episode_length
-            action, is_greedy = self.dqn.epsilon_greedy_policy(self.dqn.return_greedy_action(state)) # TODO REMOVE IS GREEDY FROM RETURN
+            action, is_greedy = self.dqn.epsilon_greedy_policy(
+                self.dqn.return_greedy_action(state))  # TODO REMOVE IS GREEDY FROM RETURN
 
         self.steps_taken_in_episode += 1
         self.num_steps_taken += 1
-        self.state = state # NP ARRAY
+        self.state = state  # NP ARRAY
         self.action = action
         action = np.array(self.actions[action])
-        return action, is_greedy # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
+        return action, is_greedy  # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
@@ -180,7 +181,8 @@ class Agent:
 
         # Train
         if self.num_steps_taken > self.training_threshhold:
-            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck, distance_to_goal)
+            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
+                                           self.got_stuck, distance_to_goal)
 
     def get_greedy_action(self, state: np.ndarray):
         return self.actions[self.dqn.return_greedy_action(state)]
@@ -189,6 +191,7 @@ class Agent:
 # The DQN class determines how to train the above neural network.
 class DQN:
     gamma = .95
+
     # The class initialisation function.
     def __init__(self, batch_size, replay_buffer_size):
         self.q_network = Network(input_dimension=2, output_dimension=8)
@@ -197,8 +200,8 @@ class DQN:
 
         # Batch size used in the replay_buffer
         self.replay_buffer = None
-        self.batch_size = batch_size # TODO update if change the batch size in replay buffer
-        self.replay_buffer_size = replay_buffer_size # TODO FEED IN REPLAY BUFFER DIRECTLY
+        self.batch_size = batch_size  # TODO update if change the batch size in replay buffer
+        self.replay_buffer_size = replay_buffer_size  # TODO FEED IN REPLAY BUFFER DIRECTLY
 
         # Episode length
         self.episode_length = None
@@ -206,7 +209,7 @@ class DQN:
         self.steps_copy_target = self.episode_length
 
         # Epsilon
-        self.epsilon = 0.6 # TODO
+        self.epsilon = 0.6  # TODO
         self.steps_increase_epsilon = 15
 
         # is greedy
@@ -221,13 +224,12 @@ class DQN:
         self.start_epsilon_greedy = 0.2
 
         self.epsilon_decrease = 0.0002
-        self.epsilon_increase = 0.003
+        self.epsilon_increase = 0.001
 
         self.steps_made_in_exploration = 0
         self.greedy_counter = 0
 
         self.has_reached_goal_previous_episode = False
-
 
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck, distance_to_goal):
         # Update target network
@@ -250,7 +252,8 @@ class DQN:
         self.optimiser.step()
 
         # Update the TD errors of the transitions we used
-        td_error = np.abs((tensor_bellman_current_state_value - tensor_predicted_q_value_current_state).detach().numpy()).ravel()
+        td_error = np.abs(
+            (tensor_bellman_current_state_value - tensor_predicted_q_value_current_state).detach().numpy()).ravel()
         for index, error in zip(buffer_indices, td_error):
             self.replay_buffer.transition_td_errors[index] = error
 
@@ -271,7 +274,7 @@ class DQN:
                 self.epsilon = self.start_epsilon_greedy
                 self.steps_increase_epsilon += 2
 
-            if self.greedy_counter == 3: # Make more often TODO
+            if self.greedy_counter == 4:  # Make more often TODO
                 self.is_epsilon_delta = True
                 self.epsilon = self.start_epsilon_delta
                 self.is_epsilon_greedy = False
@@ -281,7 +284,7 @@ class DQN:
 
         # Do not do any of this if we are still in random exploration phase
         if step_number > self.steps_made_in_exploration:
-        # Linear Epsilon Delta Decrease
+            # Linear Epsilon Delta Decrease
             if self.is_epsilon_delta:
                 self.epsilon -= self.epsilon_decrease
                 if self.epsilon <= 0.3:
@@ -291,12 +294,13 @@ class DQN:
             # Linear Epsilon Delta Increase
             elif self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
                 self.epsilon += self.epsilon_increase
-                if self.episode_length - step_in_episode == 40 and distance_to_goal > 0.3: # increase steps TODO
-                    self.epsilon = 0.8
-                elif self.episode_length - step_in_episode < 15:
-                    self.epsilon -= 0.05
+                if self.episode_counter > 20:
+                    if self.episode_length - step_in_episode == 50 and distance_to_goal > 0.3:  # increase steps TODO
+                        self.epsilon = 0.8
+                    elif self.episode_length - step_in_episode < 15:
+                        self.epsilon -= 0.025
 
-        self.epsilon = min(1, self.epsilon) # set max ccap at 0.8 TODO
+        self.epsilon = min(1, self.epsilon)  # set max ccap at 0.8 TODO
         self.epsilon = max(0, self.epsilon)
 
         if distance_to_goal < 0.03:
@@ -320,7 +324,7 @@ class DQN:
     def return_next_state_values_tensor(self, tensor_next_states):
         # Double Q
         tensor_network_predictions = self.q_network.forward(tensor_next_states)
-        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1,1)
+        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1, 1)
 
         with torch.no_grad():
             tensor_target_network_predictions = self.target_q_network.forward(tensor_next_states)
@@ -337,6 +341,7 @@ class DQN:
             return np.random.randint(0, 8), False
         else:
             return greedy_action, True
+
 
 class ReplayBuffer:
     def __init__(self, max_capacity, batch_size=50):
@@ -359,17 +364,17 @@ class ReplayBuffer:
         self.replay_buffer.clear()
 
     # Returns tuple of tensors, each has dimension (batch_size, *), SARS'
-    def generate_batch(self, batch_size = False):
+    def generate_batch(self, batch_size=False):
         # REMOVE THIS IF NOT NEEDED, IE IF CONSTANT BATCH SIZE # TODO
         if not batch_size:
             batch_size = self.batch_size
 
         # Adding a min probability constant to make sure transitions with small errors are still selected
-        min_probability_constant = 0.5 # TODO
+        min_probability_constant = 0.5  # TODO
 
         # Normalise weights
         weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
-                    sum(self.transition_td_errors) + min_probability_constant * self.length)
+                sum(self.transition_td_errors) + min_probability_constant * self.length)
 
         current_states = []
         actions = []
@@ -390,4 +395,3 @@ class ReplayBuffer:
             next_states.append(self.replay_buffer[index][3])  # 1x2
         return torch.tensor(current_states).float(), torch.tensor(actions), torch.tensor(rewards).float(), torch.tensor(
             next_states).float(), indices  # MSE needs float values, so cast rewards to floats
-
