@@ -72,10 +72,15 @@ class Agent:
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 300 # MAKE SHORTER so less imbalance? add one full random again?
+        self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
         self.steps_made_in_exploration = self.random_exploration_episode_length * 6
+        self.starting_exploration_step_size = 0.02
+        self.later_exploration_step_size = 0.015
+        self.exploration_step_size = self.starting_exploration_step_size
+        self.epsilon = 0
 
-        self.training_threshhold = self.random_exploration_episode_length
+        # self.training_threshhold = self.random_exploration_episode_length * 8
+        self.training_threshhold = 900 # CUTOFF TIMES 3
 
         self.num_steps_taken = 0
         self.state = None
@@ -132,11 +137,23 @@ class Agent:
             self.episode_length = self.random_exploration_episode_length
             direction = (self.episode_counter - 1) % 8
             # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
+            if self.steps_taken_in_episode > 300:
+                self.exploration_step_size = self.later_exploration_step_size
+                self.training_threshhold = 300 # TODO
+
             if self.steps_taken_in_episode < 9 and self.got_stuck:
                 self.episode_length = self.num_steps_taken + 1
                 action = np.random.randint(8)
             elif self.steps_taken_in_episode < 25 and not self.got_stuck:
                 action = direction
+            elif self.steps_taken_in_episode < 300:
+                action = np.random.randint(8)
+            elif self.steps_taken_in_episode >= 300:
+                if self.epsilon >= 0.79:
+                    greedy_action = self.dqn.return_greedy_action(state)
+                    action, is_greedy = self.dqn.epsilon_greedy_policy(greedy_action, self.epsilon)
+                else:
+                    action = np.random.randint(8)
             else:
                 action = np.random.randint(8)
         else:
@@ -149,15 +166,34 @@ class Agent:
         self.state = state  # NP ARRAY
         self.action = action
         action = np.array(self.actions[action])
+        if self.num_steps_taken < self.steps_made_in_exploration:
+            action = action / 0.02 * self.exploration_step_size
         return action, is_greedy  # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
+        # TODO
+        if distance_to_goal > 0.8 and self.steps_taken_in_episode > 300:
+            self.episode_length = self.num_steps_taken
+            self.exploration_step_size = self.starting_exploration_step_size
+            self.replay_buffer.clear()
+            self.replay_buffer.transition_td_errors.clear()
+            self.replay_buffer.length = 0
+            self.steps_taken_in_episode = 0 # TO SKIP TRAINING
+            print("ENDING EARLY", self.steps_taken_in_episode)
+
+        if distance_to_goal < 0.3:
+            self.epsilon = 0.8
+        else:
+            self.epsilon = 1
+
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
         else:
             self.got_stuck = False
         if distance_to_goal < 0.03:
+            print("REACHED GOAL")
+            raise
             reward = 1
         elif distance_to_goal < 0.05:
             reward = 0.5
@@ -190,7 +226,7 @@ class Agent:
         self.replay_buffer.transition_td_errors.append(0.0001)
 
         # Train
-        if self.num_steps_taken > self.training_threshhold:
+        if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
                                            self.got_stuck, distance_to_goal)
 
@@ -245,7 +281,9 @@ class DQN:
         self.all_actions = set(range(8))
 
 
-    def epsilon_greedy_policy(self, greedy_action):
+    def epsilon_greedy_policy(self, greedy_action, epsilon = False):
+        if epsilon:
+            self.epsilon = epsilon
         print("EPS", self.epsilon)
         # If we are in end exploration mode in epsilon greedy part
         if self.epsilon <= -90:
