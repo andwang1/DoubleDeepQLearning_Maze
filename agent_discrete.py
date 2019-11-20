@@ -67,27 +67,30 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 500 # Need long to reach goal early
+        self.episode_length = 250 # Need long to reach goal early
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
         self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
-        self.steps_made_in_exploration = self.random_exploration_episode_length * 6
         self.stop_exploration = False
+        self.goal_exploration_step_size = False
         self.steps_exploration_episode_cutoff = 300
+        self.initial_area_exploration = True
+        self.done_initial_area_exploration = False
+        self.reached_goal = False
 
         # self.training_threshhold = self.random_exploration_episode_length * 8
         self.training_threshhold = 15900 # CUTOFF TIMES 3
         self.start_training = False
         self.first_train = True
 
+
         self.num_steps_taken = 0
         self.state = None
         self.action = None
 
         # Replay buffer
-        # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
         self.buffer_size = 400000 # no effect when have a good solution and keep going back to goal, make this smaller
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
@@ -96,7 +99,6 @@ class Agent:
         self.dqn.copy_weights_to_target_dqn()
         self.dqn.episode_length = self.episode_length
         self.dqn.steps_copy_target = self.episode_length
-        self.dqn.steps_made_in_exploration = self.steps_made_in_exploration
         self.dqn.replay_buffer = self.replay_buffer
 
         self.got_stuck = False
@@ -119,14 +121,20 @@ class Agent:
             self.steps_taken_in_episode = 0
             self.got_stuck = False
 
-            if self.stop_exploration:
+            if self.reached_goal:
+                self.stop_exploration = True
+
+            if self.done_initial_area_exploration:
                 self.start_training = True
+                self.initial_area_exploration = False
 
             # Decrease episode length every time we reach the goal
             if self.dqn.has_reached_goal_previous_episode:
-                print("DECREASING EP LENGTH")
+                print("DECREASING EP LENGTH", self.episode_length)
                 self.episode_length -= 5
                 self.episode_length = max(100, self.episode_length)
+                # self.actual_episode_length -= 5 # TODO
+                # self.actual_episode_length = max(100, self.episode_length)
             return True
         else:
             return False
@@ -150,7 +158,12 @@ class Agent:
                 action = direction
             else:
                 action = np.random.randint(8)
-
+        elif self.initial_area_exploration:
+            print("INITIAL RANDOM")
+            # self.goal_exploration_step_size = False
+            self.episode_length = 200
+            action = np.random.randint(8)
+            self.done_initial_area_exploration = True
         else:
             self.episode_length = self.actual_episode_length
             action, is_greedy = self.dqn.epsilon_greedy_policy(
@@ -161,6 +174,8 @@ class Agent:
         self.state = state  # NP ARRAY
         self.action = action
         action = np.array(self.actions[action])
+        # if self.goal_exploration_step_size:
+        #     action = action / 0.02 * self.goal_exploration_step_size
         return action, is_greedy  # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
@@ -173,15 +188,16 @@ class Agent:
                 self.replay_buffer.transition_td_errors.clear()
                 self.replay_buffer.distance_errors.clear()
                 self.replay_buffer.length = 0
+                self.replay_buffer.wrap_around_index = 0
                 self.steps_taken_in_episode = 0 # TO SKIP TRAINING
                 print("ENDING EARLY", self.steps_taken_in_episode)
 
             # Break condition if have gotten close enough
-            if distance_to_goal < 0.02:
-                self.stop_exploration = True
+            if distance_to_goal < 0.008:
+                self.reached_goal = True
                 self.replay_buffer.convert_deque_to_array()
                 # Break the episode
-                # self.episode_length = self.num_steps_taken + 20
+                self.episode_length = self.num_steps_taken
 
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
@@ -221,7 +237,10 @@ class Agent:
         if not self.stop_exploration:
             self.replay_buffer.distance_errors.append(distance_rounded)
         else:
-            self.replay_buffer.distance_errors_array[self.replay_buffer.length] = distance_rounded
+            array_index = self.replay_buffer.length + self.replay_buffer.index_offset
+            # NEED TO OFFSET WHEN INDEXING DEQUE AS WELL can do with constant offset TODO
+
+            self.replay_buffer.distance_errors_array[array_index] = distance_rounded
 
         if distance_rounded > self.replay_buffer.max_distance:
             self.replay_buffer.max_distance = distance_rounded
@@ -237,8 +256,10 @@ class Agent:
         # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
         if self.start_training:
             if self.first_train:
-                for _ in range(1000):
-                    print("enters first train loop")
+                for i in range(4000):
+                    print("first train", i)
+                    # print("enters first train loop")
+                    # TODO try bigger batch with multiple selections and replace?
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size),
                                                    self.num_steps_taken,
                                                    self.got_stuck, distance_to_goal)
@@ -286,12 +307,12 @@ class DQN:
         self.is_epsilon_greedy = False
 
         self.start_epsilon_delta = 0.55
+        self.end_epsilon_delta = 0.3
         self.start_epsilon_greedy = 0.3
 
         self.epsilon_decrease = 0.00003 # MAKE LOWER
         self.epsilon_increase = 0.001
 
-        self.steps_made_in_exploration = 0
         self.greedy_counter = 0
 
         self.has_reached_goal_previous_episode = False
@@ -391,16 +412,18 @@ class DQN:
 
             if self.has_reached_goal_previous_episode:
                 self.start_epsilon_delta -= 0.01
+                self.end_epsilon_delta -= 0.01
                 self.has_reached_goal_previous_episode = False
                 self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
+                # self.end_epsilon_delta = max(self.end_epsilon_delta, 0.05)
 
-            if self.epsilon <= 0.2:
-                self.epsilon = self.start_epsilon_delta
-            elif self.used_saved_epsilon is not False:
-                self.epsilon = self.saved_epsilon
+            # if self.epsilon <= 0.2:
+            #     self.epsilon = self.start_epsilon_delta
+            # elif self.used_saved_epsilon is not False:
+            #     self.epsilon = self.saved_epsilon
 
-            self.saved_epsilon = False
-            self.used_saved_epsilon = False
+            # self.saved_epsilon = False
+            # self.used_saved_epsilon = False
 
         step_in_episode = step_number % self.episode_length
 
@@ -410,11 +433,14 @@ class DQN:
             self.epsilon -= self.epsilon_decrease
         else:
             self.epsilon -= 0.0001
-            if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
-                if self.saved_epsilon is False:
-                    self.saved_epsilon = self.epsilon
-                self.used_saved_epsilon = True
-                self.epsilon = 0.5
+            # if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
+            #     if self.saved_epsilon is False:
+            #         self.saved_epsilon = self.epsilon
+            #     self.used_saved_epsilon = True
+            #     self.epsilon = 0.5
+
+        if self.epsilon < self.end_epsilon_delta:
+            self.epsilon = self.start_epsilon_delta
 
 
         # self.epsilon = max(0, self.epsilon)
@@ -458,6 +484,8 @@ class ReplayBuffer:
         self.replay_buffer = collections.deque(maxlen=self.buffer_max_len)
         self.batch_size = batch_size
         self.length = 0
+        self.wrap_around_index = 0
+        self.index_offset = 0
 
         self.max_distance = 0
         self.min_distance = 2
@@ -475,6 +503,8 @@ class ReplayBuffer:
         self.replay_buffer.append(transition_tuple)
         # Adds 1 only if the buffer is not full
         self.length += 1 if self.length < self.buffer_max_len else 0
+        self.wrap_around_index += 1
+        self.index_offset = self.wrap_around_index % self.buffer_max_len
 
     def clear(self):
         self.replay_buffer.clear()
@@ -507,6 +537,7 @@ class ReplayBuffer:
 
             indices.append(np.random.choice(samples_at_distance))
 
+        indices = np.array(indices) - self.index_offset % self.buffer_max_len
         # print("calculated indices")
         # Normalise weights
         # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
@@ -523,7 +554,7 @@ class ReplayBuffer:
         # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
-        # indices[-1] = self.length - 1
+        indices.append(self.length - 1)
 
         # print(indices)
         # print(self.length)
