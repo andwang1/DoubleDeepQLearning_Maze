@@ -74,7 +74,6 @@ class Agent:
         # Set random exploration episode length
         self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
         self.steps_made_in_exploration = self.random_exploration_episode_length * 6
-        self.epsilon = 0
         self.stop_exploration = False
         self.steps_exploration_episode_cutoff = 300
 
@@ -119,6 +118,9 @@ class Agent:
             self.episode_counter += 1
             self.steps_taken_in_episode = 0
             self.got_stuck = False
+
+            if self.stop_exploration:
+                self.start_training = True
 
             # Decrease episode length every time we reach the goal
             if self.dqn.has_reached_goal_previous_episode:
@@ -175,10 +177,11 @@ class Agent:
                 print("ENDING EARLY", self.steps_taken_in_episode)
 
             # Break condition if have gotten close enough
-            if distance_to_goal < 0.04:
+            if distance_to_goal < 0.02:
                 self.stop_exploration = True
-                self.start_training = True
                 self.replay_buffer.convert_deque_to_array()
+                # Break the episode
+                # self.episode_length = self.num_steps_taken + 20
 
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
@@ -234,13 +237,13 @@ class Agent:
         # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
         if self.start_training:
             if self.first_train:
-                for _ in range(50):
+                for _ in range(1000):
                     print("enters first train loop")
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size),
                                                    self.num_steps_taken,
                                                    self.got_stuck, distance_to_goal)
                 self.first_train = False
-                raise
+                # raise
 
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
                                            self.got_stuck, distance_to_goal)
@@ -282,10 +285,10 @@ class DQN:
         self.is_epsilon_delta = True
         self.is_epsilon_greedy = False
 
-        self.start_epsilon_delta = 0.5
+        self.start_epsilon_delta = 0.55
         self.start_epsilon_greedy = 0.3
 
-        self.epsilon_decrease = 0.00005 # MAKE LOWER
+        self.epsilon_decrease = 0.00003 # MAKE LOWER
         self.epsilon_increase = 0.001
 
         self.steps_made_in_exploration = 0
@@ -296,10 +299,7 @@ class DQN:
         self.all_actions = set(range(8))
 
 
-    def epsilon_greedy_policy(self, greedy_action, epsilon = False):
-        if epsilon:
-            self.epsilon = epsilon
-        print("EPS", self.epsilon)
+    def epsilon_greedy_policy(self, greedy_action):
         # If we are in end exploration mode in epsilon greedy part
         if self.epsilon <= -90:
             time.sleep(.5)
@@ -348,6 +348,7 @@ class DQN:
 
         else:
             # Standard epsilon greedy
+            print("EXEC EPS GREEDY", self.epsilon)
             if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
                 random_action = np.random.randint(0, 8)
                 # while random_action == greedy_action:
@@ -404,17 +405,16 @@ class DQN:
         step_in_episode = step_number % self.episode_length
 
         # Do not do any of this if we are still in random exploration phase
-        if step_number > self.steps_made_in_exploration:
-            # Linear Epsilon Delta Decrease
-            if self.epsilon > 0.4:
-                self.epsilon -= self.epsilon_decrease
-            else:
-                self.epsilon -= 0.0001
-                if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
-                    if self.saved_epsilon is False:
-                        self.saved_epsilon = self.epsilon
-                    self.used_saved_epsilon = True
-                    self.epsilon = 0.5
+        # Linear Epsilon Delta Decrease
+        if self.epsilon > 0.4:
+            self.epsilon -= self.epsilon_decrease
+        else:
+            self.epsilon -= 0.0001
+            if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
+                if self.saved_epsilon is False:
+                    self.saved_epsilon = self.epsilon
+                self.used_saved_epsilon = True
+                self.epsilon = 0.5
 
 
         # self.epsilon = max(0, self.epsilon)
@@ -490,24 +490,24 @@ class ReplayBuffer:
 
         # Distance weights
         # Calculate weights by iterating through array
-        print("before indices")
+        # print("before indices")
         indices = []
-        print(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True))
-        print(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2))
+        # print(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True))
+        # print(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2))
         for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
-            print(distance)
+            # print(self.length)
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-            print(samples_at_distance)
+            # print(samples_at_distance)
             while len(samples_at_distance) == 0:
-                print("whileloop")
+                # print("whileloop")
                 distance = round(distance - 0.01, 2)
-                print(distance)
+                # print(distance)
                 samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-                print(samples_at_distance)
+                # print(samples_at_distance)
 
             indices.append(np.random.choice(samples_at_distance))
 
-        print("calculated indices")
+        # print("calculated indices")
         # Normalise weights
         # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
         #         sum(self.transition_td_errors) + min_probability_constant * self.length)
@@ -525,10 +525,10 @@ class ReplayBuffer:
         # this because append is slow and creates a copy
         # indices[-1] = self.length - 1
 
-        print(indices)
-        print(self.length)
-        print(len(self.replay_buffer))
-        print(len(self.distance_errors_array))
+        # print(indices)
+        # print(self.length)
+        # print(len(self.replay_buffer))
+        # print(len(self.distance_errors_array))
 
         for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
