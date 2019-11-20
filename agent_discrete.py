@@ -77,7 +77,7 @@ class Agent:
 
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = 40 * self.episode_length + self.steps_made_in_exploration  # TODO
+        self.buffer_size = 35 * self.episode_length + self.steps_made_in_exploration  # TODO
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # DQN
@@ -231,8 +231,67 @@ class DQN:
 
         self.has_reached_goal_previous_episode = False
 
+
+    def epsilon_greedy_policy(self, greedy_action):
+        print("EPS", self.epsilon)
+        # If we are in end exploration mode in epsilon greedy part
+        if self.epsilon <= -90:
+            # time.sleep(5)
+            print("enter loop")
+            print("greedy action", greedy_action)
+            if greedy_action == 2: # DOWN
+                likely_next_actions = [3, 4, 5, 6]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 3: # DIAG DOWN RIGHT
+                likely_next_actions = [6, 5]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 4: # RIGHT
+                likely_next_actions = [6, 5, 4, 3]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 5:
+                likely_next_actions = [2, 3]
+                if np.random.randint(0, 100) in range(80):
+                    if np.random.randint(0, 100) in range(70):
+                        return 2, False
+                    else:
+                        return 3, False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            if greedy_action == 6:
+                likely_next_actions = [2, 3, 4, 5]
+                if np.random.randint(0, 100) in range(80):
+                    return np.random.choice(likely_next_actions), False
+                else:
+                    return np.random.choice(list(self.all_actions - set(likely_next_actions) - {greedy_action})), False
+
+            # If its optimal to go any other way TODO? WRITE OUT ALL ACTIONS IF IT WORKS
+            return np.random.randint(8), False
+
+        else:
+            # Standard epsilon greedy
+            if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
+                random_action = np.random.randint(0, 8)
+                while random_action == greedy_action:
+                    random_action = np.random.randint(0, 8)
+                return random_action, False
+            else:
+                return greedy_action, True
+
+
     def train_q_network_batch(self, transitions: tuple, step_number, got_stuck, distance_to_goal):
-        # Update target network
         if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
 
@@ -274,7 +333,7 @@ class DQN:
                 self.epsilon = self.start_epsilon_greedy
                 self.steps_increase_epsilon += 2
 
-            if self.greedy_counter == 4:  # Make more often TODO
+            if self.greedy_counter == 3:  # Make more often TODO
                 self.is_epsilon_delta = True
                 self.epsilon = self.start_epsilon_delta
                 self.is_epsilon_greedy = False
@@ -287,7 +346,7 @@ class DQN:
             # Linear Epsilon Delta Decrease
             if self.is_epsilon_delta:
                 self.epsilon -= self.epsilon_decrease
-                if self.epsilon <= 0.3:
+                if self.epsilon <= 0.2:
                     self.is_epsilon_delta = False
                     self.is_epsilon_greedy = True
 
@@ -296,8 +355,10 @@ class DQN:
                 self.epsilon += self.epsilon_increase
                 if self.episode_counter > 20:
                     if self.episode_length - step_in_episode == 50 and distance_to_goal > 0.3:  # increase steps TODO
+                        self.epsilon = -99
+                    if self.episode_length - step_in_episode == 15 and distance_to_goal > 0.3:
                         self.epsilon = 0.8
-                    elif self.episode_length - step_in_episode < 15:
+                    if self.episode_length - step_in_episode < 15:
                         self.epsilon -= 0.025
 
         self.epsilon = min(1, self.epsilon)  # set max ccap at 0.8 TODO
