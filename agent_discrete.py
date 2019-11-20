@@ -80,7 +80,7 @@ class Agent:
 
         # self.training_threshhold = self.random_exploration_episode_length * 8
         self.training_threshhold = 15900 # CUTOFF TIMES 3
-        self.start_training = True
+        self.start_training = False
         self.first_train = True
 
         self.num_steps_taken = 0
@@ -220,6 +220,11 @@ class Agent:
         else:
             self.replay_buffer.distance_errors_array[self.replay_buffer.length] = distance_rounded
 
+        if distance_rounded > self.replay_buffer.max_distance:
+            self.replay_buffer.max_distance = distance_rounded
+        if distance_rounded < self.replay_buffer.min_distance:
+            self.replay_buffer.min_distance = distance_rounded
+
         # Do this after so the length doesnt change before the above
         transition = (self.state, self.action, reward, next_state)
         self.replay_buffer.add(transition)
@@ -227,7 +232,16 @@ class Agent:
 
         # Train
         # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
-        if self.num_steps_taken > 10000000:
+        if self.start_training:
+            if self.first_train:
+                for _ in range(50):
+                    print("enters first train loop")
+                    self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size),
+                                                   self.num_steps_taken,
+                                                   self.got_stuck, distance_to_goal)
+                self.first_train = False
+                raise
+
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
                                            self.got_stuck, distance_to_goal)
 
@@ -362,12 +376,12 @@ class DQN:
         self.optimiser.step()
 
         # Update the TD errors of the transitions we used
-        td_error = np.abs(
-            (tensor_bellman_current_state_value - tensor_predicted_q_value_current_state).detach().numpy()).ravel()
-        for index, error in zip(buffer_indices, td_error):
-            self.replay_buffer.transition_td_errors[index] = error
-
-        print("td", step_number, np.mean(td_error))
+        # td_error = np.abs(
+        #     (tensor_bellman_current_state_value - tensor_predicted_q_value_current_state).detach().numpy()).ravel()
+        # for index, error in zip(buffer_indices, td_error):
+        #     self.replay_buffer.transition_td_errors[index] = error
+        #
+        # print("td", step_number, np.mean(td_error))
         print(self.episode_counter)
 
         # increase epsilon later as we go through episodes and hopefully know more about the initial areas
@@ -476,18 +490,27 @@ class ReplayBuffer:
 
         # Distance weights
         # Calculate weights by iterating through array
-        # indices = []
-        # for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True)):
-        #     samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-        #     while len(samples_at_distance) == 0:
-        #         distance -= 0.01
-        #         samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-        #
-        #     indices.append(np.random.choice(samples_at_distance))
+        print("before indices")
+        indices = []
+        print(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True))
+        print(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2))
+        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
+            print(distance)
+            samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
+            print(samples_at_distance)
+            while len(samples_at_distance) == 0:
+                print("whileloop")
+                distance = round(distance - 0.01, 2)
+                print(distance)
+                samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
+                print(samples_at_distance)
 
+            indices.append(np.random.choice(samples_at_distance))
+
+        print("calculated indices")
         # Normalise weights
-        weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
-                sum(self.transition_td_errors) + min_probability_constant * self.length)
+        # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
+        #         sum(self.transition_td_errors) + min_probability_constant * self.length)
 
         current_states = []
         actions = []
@@ -495,12 +518,17 @@ class ReplayBuffer:
         next_states = []
 
         # We generate random indices according to their TD error weights
-        indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
+        # indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
 
         # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
-        indices[-1] = self.length - 1
+        # indices[-1] = self.length - 1
+
+        print(indices)
+        print(self.length)
+        print(len(self.replay_buffer))
+        print(len(self.distance_errors_array))
 
         for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
