@@ -237,10 +237,9 @@ class Agent:
         if not self.stop_exploration:
             self.replay_buffer.distance_errors.append(distance_rounded)
         else:
-            array_index = self.replay_buffer.length + self.replay_buffer.index_offset
+            # array_index = self.replay_buffer.wrap_around_index % self.replay_buffer.buffer_max_len
             # NEED TO OFFSET WHEN INDEXING DEQUE AS WELL can do with constant offset TODO
-
-            self.replay_buffer.distance_errors_array[array_index] = distance_rounded
+            self.replay_buffer.distance_errors_array[self.replay_buffer.length] = distance_rounded
 
         if distance_rounded > self.replay_buffer.max_distance:
             self.replay_buffer.max_distance = distance_rounded
@@ -523,9 +522,10 @@ class ReplayBuffer:
         # Distance weights
         # Calculate weights by iterating through array
         # print("before indices")
+        indices = []
         # print(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True))
         # print(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2))
-        for index, distance in enumerate(np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2)):
+        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
             # print(self.length)
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
             # print(samples_at_distance)
@@ -536,9 +536,8 @@ class ReplayBuffer:
                 samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
                 # print(samples_at_distance)
 
-            self.indices[index] = np.random.choice(samples_at_distance)
+            indices.append(np.random.choice(samples_at_distance))
 
-        self.indices = (self.indices - self.index_offset) % self.buffer_max_len
         # print("calculated indices")
         # Normalise weights
         # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
@@ -555,15 +554,14 @@ class ReplayBuffer:
         # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
-        self.indices[index + 1] = (self.length - 1 - self.index_offset) % self.buffer_max_len  # NEED TO CONVERT INDICES INTO EMPTY NP ARRAY FIRST AND WRITE INTO THIS
-
+        indices.append(self.length - 1)
 
         # print(indices)
         # print(self.length)
         # print(len(self.replay_buffer))
         # print(len(self.distance_errors_array))
 
-        for index in self.indices:
+        for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
             actions.append([self.replay_buffer[index][1]])  # 1x1
             rewards.append([self.replay_buffer[index][2]])  # 1x1
