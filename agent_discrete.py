@@ -74,9 +74,6 @@ class Agent:
         # Set random exploration episode length
         self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
         self.steps_made_in_exploration = self.random_exploration_episode_length * 6
-        self.starting_exploration_step_size = 0.02
-        self.later_exploration_step_size = 0.02
-        self.exploration_step_size = self.starting_exploration_step_size
         self.epsilon = 0
         self.stop_exploration = False
         self.steps_exploration_episode_cutoff = 300
@@ -141,13 +138,11 @@ class Agent:
             self.episode_length = self.random_exploration_episode_length
             direction = (self.episode_counter - 1) % 8
             # IF GET STUCK EARLY THEN WE ARE NEXT TO WALL, quit this random exploration early
-            if self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
-                self.exploration_step_size = self.later_exploration_step_size
 
             if self.steps_taken_in_episode < 9 and self.got_stuck:
                 # Break episode early
                 self.episode_length = self.num_steps_taken + 1
-                action = np.random.randint(8)
+                action = 0
 
             elif self.steps_taken_in_episode < 25 and not self.got_stuck:
                 action = direction
@@ -164,27 +159,26 @@ class Agent:
         self.state = state  # NP ARRAY
         self.action = action
         action = np.array(self.actions[action])
-        if self.num_steps_taken < self.steps_made_in_exploration:
-            action = action / 0.02 * self.exploration_step_size
         return action, is_greedy  # return here as nparray # TODO REMOVE IS GREEDY FROM RETURN
 
     # AFTER ACTION CALL THIS GETS CALLED GET THE TRANSITION HERE TODO
     def set_next_state_and_distance(self, next_state, distance_to_goal):
-        # BREAK CONDITION FOR EXPLORATION if have not gotten far enough
-        if distance_to_goal > 0.8 and self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
-            self.episode_length = self.num_steps_taken
-            self.exploration_step_size = self.starting_exploration_step_size
-            self.replay_buffer.clear()
-            self.replay_buffer.transition_td_errors.clear()
-            self.replay_buffer.distance_errors.clear()
-            self.replay_buffer.length = 0
-            self.steps_taken_in_episode = 0 # TO SKIP TRAINING
-            print("ENDING EARLY", self.steps_taken_in_episode)
+        if not self.stop_exploration:
+            # BREAK CONDITION FOR EXPLORATION if have not gotten far enough
+            if distance_to_goal > 0.8 and self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
+                self.episode_length = self.num_steps_taken
+                self.replay_buffer.clear()
+                self.replay_buffer.transition_td_errors.clear()
+                self.replay_buffer.distance_errors.clear()
+                self.replay_buffer.length = 0
+                self.steps_taken_in_episode = 0 # TO SKIP TRAINING
+                print("ENDING EARLY", self.steps_taken_in_episode)
 
-        if not self.stop_exploration and distance_to_goal < 0.04:
-            self.stop_exploration = True
-            self.start_training = True
-            self.replay_buffer.convert_deque_to_array()
+            # Break condition if have gotten close enough
+            if distance_to_goal < 0.04:
+                self.stop_exploration = True
+                self.start_training = True
+                self.replay_buffer.convert_deque_to_array()
 
         if np.linalg.norm(self.state - next_state) < 0.0002:
             self.got_stuck = True
@@ -233,14 +227,7 @@ class Agent:
 
         # Train
         # if self.num_steps_taken > self.training_threshhold and self.steps_taken_in_episode > self.batch_size:
-        if self.start_training:
-            if self.first_train:
-                for _ in range(5):
-                    self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size),
-                                                   self.num_steps_taken,
-                                                   self.got_stuck, distance_to_goal)
-                self.first_train = False
-
+        if self.num_steps_taken > 10000000:
             self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken,
                                            self.got_stuck, distance_to_goal)
 
@@ -403,17 +390,17 @@ class DQN:
         step_in_episode = step_number % self.episode_length
 
         # Do not do any of this if we are still in random exploration phase
-        # if step_number > self.steps_made_in_exploration:
-        # Linear Epsilon Delta Decrease
-        if self.epsilon > 0.4:
-            self.epsilon -= self.epsilon_decrease
-        else:
-            self.epsilon -= 0.0001
-            if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
-                if self.saved_epsilon is False:
-                    self.saved_epsilon = self.epsilon
-                self.used_saved_epsilon = True
-                self.epsilon = 0.5
+        if step_number > self.steps_made_in_exploration:
+            # Linear Epsilon Delta Decrease
+            if self.epsilon > 0.4:
+                self.epsilon -= self.epsilon_decrease
+            else:
+                self.epsilon -= 0.0001
+                if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
+                    if self.saved_epsilon is False:
+                        self.saved_epsilon = self.epsilon
+                    self.used_saved_epsilon = True
+                    self.epsilon = 0.5
 
 
         # self.epsilon = max(0, self.epsilon)
@@ -488,22 +475,19 @@ class ReplayBuffer:
         min_probability_constant = 0.5  # TODO
 
         # Distance weights
-        # ONLY DO THIS AFTER RANDOM EXPLORATION
-
-
         # Calculate weights by iterating through array
-        indices = []
-        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True)):
-            samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-            while len(samples_at_distance) == 0:
-                distance -= 0.01
-                samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
-
-            indices.append(np.random.choice(samples_at_distance))
+        # indices = []
+        # for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True)):
+        #     samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
+        #     while len(samples_at_distance) == 0:
+        #         distance -= 0.01
+        #         samples_at_distance = np.argwhere(self.distance_errors_array == distance).ravel()
+        #
+        #     indices.append(np.random.choice(samples_at_distance))
 
         # Normalise weights
-        # weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
-        #         sum(self.transition_td_errors) + min_probability_constant * self.length)
+        weights = (np.array(self.transition_td_errors) + min_probability_constant) / (
+                sum(self.transition_td_errors) + min_probability_constant * self.length)
 
         current_states = []
         actions = []
@@ -511,12 +495,12 @@ class ReplayBuffer:
         next_states = []
 
         # We generate random indices according to their TD error weights
-        # indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
+        indices = np.random.choice(range(self.length), batch_size, replace=False, p=weights)
 
         # We add the last transition to the buffer so it is trained on for sure, from this we will then get the TD error
         # We replace the last transition picked, this will likely have the lowest prob and be least important, we do
         # this because append is slow and creates a copy
-        indices.append(self.length - 1)
+        indices[-1] = self.length - 1
 
         for index in indices:
             current_states.append(self.replay_buffer[index][0])  # 1x2
