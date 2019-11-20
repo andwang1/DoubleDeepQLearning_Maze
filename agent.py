@@ -409,13 +409,12 @@ class ReplayBuffer:
     def generate_batch(self, batch_size):
         # Distance weights
         indices = []
-        for distance in np.arange(self.min_distance, self.max_distance, 0.02):
+        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=batch_size, endpoint=True), decimals=2):
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-            if len(samples_at_distance) == 0: # TODO TRY
-                distance = round(distance + 0.01, 2)
+            while len(samples_at_distance) == 0: #TODO SKIP INSTEAD?
+                print("isstuck")
+                distance = round(distance - 0.01, 2)
                 samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
-                if len(samples_at_distance) == 0:
-                    continue
             # try: # DOUBLE BATCH
             #     indices.extend(np.random.choice(samples_at_distance, 2, replace=False))
             # except:
