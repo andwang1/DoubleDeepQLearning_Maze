@@ -15,24 +15,17 @@
 ############################################################################
 ############################################################################
 
-""""NP CONCAT IS SLOW"""
-
 import numpy as np
 import torch
 import collections
-from path_visualisation import PathVisualisation
-
-import time  # TODO
 
 
 # The Network class inherits the torch.nn.Module class, which represents a neural network.
 class Network(torch.nn.Module):
     # The class initialisation function. This takes as arguments the dimension of the network's input (i.e. the dimension of the state), and the dimension of the network's output (i.e. the dimension of the action).
     def __init__(self, input_dimension, output_dimension):
-        # Call the initialisation function of the parent class.
         super(Network, self).__init__()
-        # Define the network layers. This example network has two hidden layers, each with 100 units.
-        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200)  # OVERFITTING?
+        self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200)
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_4 = torch.nn.Linear(in_features=200, out_features=200)
@@ -48,7 +41,6 @@ class Network(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.layer_6.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
-    # Function which sends some input data through the network and returns the network's output. In this example, a ReLU activation function is used for both hidden layers, but the output layer has no activation function (it is just a linear layer).
     def forward(self, input):
         layer_1_output = torch.nn.functional.leaky_relu(self.layer_1(input))
         layer_2_output = torch.nn.functional.relu(self.layer_2(layer_1_output))
@@ -63,7 +55,6 @@ class Network(torch.nn.Module):
 
 
 class Agent:
-    # Function to initialise the agent
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
@@ -72,7 +63,7 @@ class Agent:
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 8000 # MAKE SHORTER so less imbalance? add one full random again?
+        self.random_exploration_episode_length = 10000 # MAKE SHORTER so less imbalance? add one full random again?
         self.stop_exploration = False
         self.steps_exploration_episode_cutoff = 300
         self.initial_area_exploration = True
@@ -88,7 +79,7 @@ class Agent:
         self.action = None
 
         # Replay buffer
-        self.buffer_size = 400000 # no effect when have a good solution and keep going back to goal, make this smaller
+        self.buffer_size = 4000000 # no effect when have a good solution and keep going back to goal, make this smaller
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # DQN
