@@ -77,7 +77,7 @@ class Agent:
 
         # Replay buffer
         # self.buffer_size = self.steps_made_in_exploration + self.random_exploration_episode_length
-        self.buffer_size = 400000 # TODO
+        self.buffer_size = 40 * self.episode_length + self.steps_made_in_exploration # TODO
         self.replay_buffer = ReplayBuffer(self.buffer_size, self.batch_size)
 
         # DQN
@@ -180,7 +180,7 @@ class Agent:
 
         # Train
         if self.num_steps_taken > self.training_threshhold:
-            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck)
+            self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(self.batch_size), self.num_steps_taken, self.got_stuck, distance_to_goal)
 
     def get_greedy_action(self, state: np.ndarray):
         return self.actions[self.dqn.return_greedy_action(state)]
@@ -206,7 +206,7 @@ class DQN:
         self.steps_copy_target = self.episode_length
 
         # Epsilon
-        self.epsilon = 0.8 # TODO
+        self.epsilon = 0.6 # TODO
         self.steps_increase_epsilon = 15
 
         # is greedy
@@ -226,8 +226,10 @@ class DQN:
         self.steps_made_in_exploration = 0
         self.greedy_counter = 0
 
+        self.has_reached_goal_previous_episode = False
 
-    def train_q_network_batch(self, transitions: tuple, step_number, got_stuck):
+
+    def train_q_network_batch(self, transitions: tuple, step_number, got_stuck, distance_to_goal):
         # Update target network
         if step_number % self.steps_copy_target == 0:
             self.copy_weights_to_target_dqn()
@@ -259,12 +261,17 @@ class DQN:
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
 
+            if self.has_reached_goal_previous_episode:
+                self.start_epsilon_delta -= 0.05
+                self.has_reached_goal_previous_episode = False
+                self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
+
             if self.is_epsilon_greedy:
                 self.greedy_counter += 1
                 self.epsilon = self.start_epsilon_greedy
                 self.steps_increase_epsilon += 2
 
-            if self.greedy_counter == 3:
+            if self.greedy_counter == 3: # Make more often TODO
                 self.is_epsilon_delta = True
                 self.epsilon = self.start_epsilon_delta
                 self.is_epsilon_greedy = False
@@ -284,13 +291,16 @@ class DQN:
             # Linear Epsilon Delta Increase
             elif self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
                 self.epsilon += self.epsilon_increase
-                if self.episode_length - step_in_episode < 40:
-                    self.epsilon += 0.05
-                if self.episode_length - step_in_episode < 10:
-                    self.epsilon = 0.2
+                if self.episode_length - step_in_episode == 40 and distance_to_goal > 0.3: # increase steps TODO
+                    self.epsilon = 0.8
+                elif self.episode_length - step_in_episode < 15:
+                    self.epsilon -= 0.05
 
-        self.epsilon = min(1, self.epsilon)
+        self.epsilon = min(1, self.epsilon) # set max ccap at 0.8 TODO
         self.epsilon = max(0, self.epsilon)
+
+        if distance_to_goal < 0.03:
+            self.has_reached_goal_previous_episode = True
 
         # # LEARNING RATE UPDATE TODO with starting rate at 0.003
         # if self.episode_counter == 10:
