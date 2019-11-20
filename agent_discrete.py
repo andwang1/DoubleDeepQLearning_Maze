@@ -67,12 +67,12 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 350 # Need long to reach goal early
+        self.episode_length = 400 # Need long to reach goal early
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 400
+        self.random_exploration_episode_length = 400 # MAKE SHORTER
         self.steps_made_in_exploration = self.random_exploration_episode_length * 6
 
         self.training_threshhold = self.random_exploration_episode_length
@@ -119,7 +119,6 @@ class Agent:
                 print("DECREASING EP LENGTH")
                 self.episode_length -= 5
                 self.episode_length = max(100, self.episode_length)
-
             return True
         else:
             return False
@@ -180,6 +179,7 @@ class Agent:
             reward = 0.005
         else:
             reward = 0
+        # reward = 1 - distance_to_goal
         if reward > 0:
             print("reward", reward)
 
@@ -218,12 +218,14 @@ class DQN:
         self.steps_copy_target = self.episode_length
 
         # Epsilon
-        self.epsilon = 0.6  # TODO
+        self.epsilon = 0.5  # TODO
         self.steps_increase_epsilon = 15
+        self.saved_epsilon = self.epsilon
 
         # is greedy
         self.is_greedy = False
         self.epsilon_maxed = False
+        self.used_saved_epsilon = False
 
         # # Epsilon linear in episode length
         self.is_epsilon_delta = True
@@ -232,7 +234,7 @@ class DQN:
         self.start_epsilon_delta = 0.5
         self.start_epsilon_greedy = 0.3
 
-        self.epsilon_decrease = 0.00015
+        self.epsilon_decrease = 0.00005 # MAKE LOWER
         self.epsilon_increase = 0.001
 
         self.steps_made_in_exploration = 0
@@ -334,45 +336,34 @@ class DQN:
             self.episode_counter += 1
 
             if self.has_reached_goal_previous_episode:
-                self.start_epsilon_delta -= 0.05
+                self.start_epsilon_delta -= 0.01
                 self.has_reached_goal_previous_episode = False
                 self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
 
-            if self.is_epsilon_greedy:
-                self.greedy_counter += 1
-                self.epsilon = self.start_epsilon_greedy
-                self.steps_increase_epsilon += 2
-
-            if self.greedy_counter == 3:  # Make more often TODO
-                self.is_epsilon_delta = True
+            if self.epsilon <= 0.2:
                 self.epsilon = self.start_epsilon_delta
-                self.is_epsilon_greedy = False
-                self.greedy_counter = 0
+            elif self.used_saved_epsilon is not False:
+                self.epsilon = self.saved_epsilon
+
+            self.saved_epsilon = False
+            self.used_saved_epsilon = False
 
         step_in_episode = step_number % self.episode_length
 
         # Do not do any of this if we are still in random exploration phase
         if step_number > self.steps_made_in_exploration:
             # Linear Epsilon Delta Decrease
-            if self.is_epsilon_delta:
-                if self.epsilon < 0.4:
-                    self.epsilon -= self.epsilon_decrease
-                else:
-                    self.epsilon -= 0.0001
-                if self.epsilon <= 0.2:
-                    self.is_epsilon_delta = False
-                    self.is_epsilon_greedy = True
+            if self.epsilon > 0.4:
+                self.epsilon -= self.epsilon_decrease
+            else:
+                self.epsilon -= 0.0001
+                if self.episode_length - step_in_episode < self.episode_length / 3 and distance_to_goal > 0.3:
+                    if self.saved_epsilon is False:
+                        self.saved_epsilon = self.epsilon
+                    self.used_saved_epsilon = True
+                    self.epsilon = 0.5
 
-            # Linear Epsilon Delta Increase
-            elif self.is_epsilon_greedy and step_in_episode > self.steps_increase_epsilon:
-                self.epsilon += self.epsilon_increase
-                if self.episode_counter > 20:
-                    if self.episode_length - step_in_episode == 50 and distance_to_goal > 0.3:  # increase steps TODO
-                        self.epsilon = 0.50
-                    # if self.episode_length - step_in_episode < 15:
-                    #     self.epsilon -= 0.025
 
-        self.epsilon = min(1, self.epsilon)  # set max ccap at 0.8 TODO
         # self.epsilon = max(0, self.epsilon)
 
         if distance_to_goal < 0.03:
