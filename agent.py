@@ -57,8 +57,8 @@ class Network(torch.nn.Module):
 class Agent:
     def __init__(self):
         # Replay buffer batch size
-        self.batch_size = 50
-        self.episode_length = 100 # 250 TODO
+        self.batch_size = 50 #KEEP
+        self.episode_length = 100 # test on map 2 150 with decreasing ep length TODO TEST
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
@@ -66,7 +66,7 @@ class Agent:
         self.random_exploration_episode_length = 6000 # MAKE SHORTER so less imbalance? add one full random again?
         self.stop_exploration = False
         self.fully_random_exploration = False
-        self.random_exploration_distance_to_goal_threshhold = 0.008
+        self.random_exploration_distance_to_goal_threshhold = 0.01
 
         self.steps_exploration_episode_cutoff = 300
         self.exploration_min_distance = 0.8

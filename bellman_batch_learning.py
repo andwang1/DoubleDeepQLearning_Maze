@@ -204,8 +204,8 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
-    plot_qvalues = True
+    plot_loss = True
+    plot_qvalues = False
     plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
@@ -228,14 +228,14 @@ if __name__ == "__main__":
     initial_time = False
 
     while True:
-        if episode_counter == 45:
+        if episode_counter == 85:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(20):
+        for step_num in range(100):
             # In this episode we will choose the greedy action instead of the random actions.
             transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
