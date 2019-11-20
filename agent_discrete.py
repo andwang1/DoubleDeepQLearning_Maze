@@ -67,12 +67,12 @@ class Agent:
     def __init__(self):
         # Replay buffer batch size
         self.batch_size = 50
-        self.episode_length = 400 # Need long to reach goal early
+        self.episode_length = 500 # Need long to reach goal early
         self.actual_episode_length = self.episode_length
         self.episode_counter = 0
 
         # Set random exploration episode length
-        self.random_exploration_episode_length = 400 # MAKE SHORTER
+        self.random_exploration_episode_length = 300 # MAKE SHORTER so less imbalance? add one full random again?
         self.steps_made_in_exploration = self.random_exploration_episode_length * 6
 
         self.training_threshhold = self.random_exploration_episode_length
