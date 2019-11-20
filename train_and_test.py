@@ -2,7 +2,7 @@ import time
 import numpy as np
 
 from random_environment import Environment
-from agent_discrete import Agent
+from agent import Agent
 
 
 # Main entry point
