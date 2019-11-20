@@ -15,7 +15,7 @@ if __name__ == "__main__":
     # Create a random seed, which will define the environment
     random_seed = int(time.time())
     print(random_seed)
-    np.random.seed(2) #25 # 15 #2
+    np.random.seed(25) #25 #2
 
     # Create a random environment
     environment = Environment(magnification=500)
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         next_state, distance_to_goal = environment.step(state, action)
         # The agent must achieve a maximum distance of 0.03 for use to consider it "reaching the goal"
         if distance_to_goal < 0.03:
-            has_reached_goal
+            has_reached_goal = True
             break
         state = next_state
         time.sleep(0.1)
