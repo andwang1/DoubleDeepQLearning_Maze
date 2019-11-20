@@ -66,7 +66,7 @@ class Agent:
         self.actual_episode_length = self.episode_length
 
         # We randomly explore in alternating directions until we find the goal
-        self.random_exploration_episode_length = 6000
+        self.random_exploration_episode_length = 6000 # TODO TEST WITH 10k again
         self.distance_to_goal_threshold = 0.01
         self.reached_goal = False
         self.stop_exploration = False
@@ -126,11 +126,11 @@ class Agent:
                 self.num_steps_taken = 0
 
             # Decrease episode length every time we reach the goal TODO
-            if self.dqn.has_reached_goal_previous_episode:
-                self.episode_length -= 5
-                self.episode_length = max(100, self.episode_length)
+            # if self.dqn.has_reached_goal_previous_episode:
                 # self.actual_episode_length -= 5 # TODO
                 # self.actual_episode_length = max(100, self.actual_episode_length)
+                # print(self.actual_episode_length)
+
             return True
         else:
             return False
