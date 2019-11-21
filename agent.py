@@ -63,11 +63,11 @@ class Agent:
     def __init__(self):
         # Episode details
         self.episode_counter = 0
-        self.episode_length = 150 # test on map 2 150 with decreasing ep length TODO TEST
+        self.episode_length = 150  # test on map 2 150 with decreasing ep length TODO TEST
         self.actual_episode_length = self.episode_length
 
         # We randomly explore in alternating directions until we find the goal
-        self.random_exploration_episode_length = 6000 # TODO TEST WITH 10k again
+        self.random_exploration_episode_length = 6000  # TODO TEST WITH 10k again
         self.distance_to_goal_threshold = 0.008
         self.reached_goal = False
         self.stop_exploration = False
@@ -105,8 +105,8 @@ class Agent:
         # 8 discrete actions
         self.actions = np.array([[-0.02, 0], [-0.01414, -0.01414],
                                  [0, -0.02], [0.01414, -0.01414],
-                                 [0.02, 0],  [0.01414, 0.01414],
-                                 [0, 0.02],  [-0.01414, 0.01414]])
+                                 [0.02, 0], [0.01414, 0.01414],
+                                 [0, 0.02], [-0.01414, 0.01414]])
 
     def has_finished_episode(self):
         if self.num_steps_taken % self.episode_length == 0:
@@ -152,7 +152,7 @@ class Agent:
             else:
                 self.undirected_random_exploration = True
                 self.exploration_min_distance = 1.1
-                self.distance_to_goal_threshold = 0.1 # TODO
+                self.distance_to_goal_threshold = 0.1  # TODO
                 self.episode_length = 15000
                 action = np.random.randint(8)
 
@@ -182,7 +182,6 @@ class Agent:
             # If after a certain number of steps we are not close enough to the goal, we will restart exploration
             if distance_to_goal > self.exploration_min_distance and \
                     self.steps_taken_in_episode > self.steps_exploration_episode_cutoff:
-
                 # Clear the buffers
                 self.replay_buffer.clear()
                 self.replay_buffer.distance_errors.clear()
@@ -223,7 +222,7 @@ class Agent:
             reward = 0.04
         elif distance_to_goal < 0.5:
             reward = 0.03
-        elif distance_to_goal < 0.6: # TODO ADD MORE REWARDS FOR MORE DIFFICULT LEVELS?
+        elif distance_to_goal < 0.6:  # TODO ADD MORE REWARDS FOR MORE DIFFICULT LEVELS?
             reward = 0.02
         else:
             reward = 0
@@ -259,7 +258,7 @@ class Agent:
         if self.train_now:
             # For the first time training, repeat training for 2000 iterations
             if self.first_time_training:
-                for i in range(2000): # TODO
+                for i in range(2000):  # TODO
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(),
                                                    self.num_steps_taken, distance_to_goal)
                 self.first_time_training = False
@@ -312,10 +311,10 @@ class DQN:
         network_predictions = self.q_network.forward(tensor_current_states)
         tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions.long())
 
+        # Next state values
         # Double Q, use Q network to get greedy actions, target network to get the value of the next state
         tensor_network_predictions = self.q_network.forward(tensor_next_states)
         tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1, 1)
-
         # Detach the gradient from the target network tensor
         with torch.no_grad():
             tensor_target_network_predictions = self.target_q_network.forward(tensor_next_states)
@@ -332,7 +331,7 @@ class DQN:
         # Episode restart, set values for epsilon decay
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
-            print(self.episode_counter) # TODO
+            print(self.episode_counter)  # TODO
 
             # If we reached the goal the previous episode, we start and end at lower epsilons, down to a threshold
             if self.has_reached_goal_previous_episode:
