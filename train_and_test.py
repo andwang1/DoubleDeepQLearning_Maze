@@ -2,7 +2,7 @@ import time
 import numpy as np
 
 from random_environment import Environment
-from agent import Agent
+from agent_final import Agent
 
 
 # Main entry point
@@ -14,8 +14,7 @@ if __name__ == "__main__":
 
     # Create a random seed, which will define the environment
     random_seed = int(time.time())
-    print(random_seed)
-    np.random.seed(15) #2
+    np.random.seed(15)
 
     # Create a random environment
     environment = Environment(magnification=500)
@@ -36,7 +35,7 @@ if __name__ == "__main__":
         if agent.has_finished_episode():
             state = environment.init_state
         # Get the state and action from the agent
-        action, is_greedy = agent.get_next_action(state) # TODO REMOVE IS GREEDY FROM RETURN
+        action = agent.get_next_action(state)
         # Get the next state and the distance to the goal
         next_state, distance_to_goal = environment.step(state, action)
         # Return this to the agent
@@ -45,25 +44,19 @@ if __name__ == "__main__":
         state = next_state
         # Optionally, show the environment
         if display_on:
-            environment.show(state, is_greedy) # TODO REMOVE IS GREEDY FROM RETURN
+            environment.show(state)
 
     # Test the agent for 100 steps, using its greedy policy
     state = environment.init_state
     has_reached_goal = False
-    is_greedy = True
-    print("GREEDY COMING UP")
-    time.sleep(5)
     for step_num in range(100):
         action = agent.get_greedy_action(state)
         next_state, distance_to_goal = environment.step(state, action)
         # The agent must achieve a maximum distance of 0.03 for use to consider it "reaching the goal"
         if distance_to_goal < 0.03:
-            has_reached_goal = True
+            has_reached_goal
             break
         state = next_state
-        time.sleep(0.1)
-        if display_on:
-            environment.show(state, is_greedy) # TODO
 
     # Print out the result
     if has_reached_goal:

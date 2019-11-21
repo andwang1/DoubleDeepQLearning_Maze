@@ -63,11 +63,11 @@ class Agent:
     def __init__(self):
         # Episode details
         self.episode_counter = 0
-        self.episode_length = 150  # test on map 2 150 with decreasing ep length TODO TEST
+        self.episode_length = 150
         self.actual_episode_length = self.episode_length
 
         # We randomly explore in alternating directions until we find the goal
-        self.random_exploration_episode_length = 6000  # TODO TEST WITH 10k again
+        self.random_exploration_episode_length = 10000
         self.distance_to_goal_threshold = 0.008
         self.reached_goal = False
         self.stop_exploration = False
@@ -130,8 +130,8 @@ class Agent:
         else:
             return False
 
-    def get_next_action(self, state: np.ndarray):  # TODO REMOVE IS GREEDY FROM RETURN
-        is_greedy = False  # TODO REMOVE IS GREEDY FROM RETURN
+    def get_next_action(self, state: np.ndarray):
+
         # Random exploration
         if not self.stop_exploration:
             # In the beginning we try every direction a few times to see if we can quickly leave the starting area
@@ -140,7 +140,7 @@ class Agent:
                 direction = (self.episode_counter - 1) % 8
 
                 # If get stuck early in the episode, restart with the next action
-                if self.steps_taken_in_episode < 9 and self.got_stuck:
+                if self.steps_taken_in_episode < 13 and self.got_stuck:
                     self.episode_length = self.num_steps_taken + 1
                     action = 4
                 elif self.steps_taken_in_episode < 25 and not self.got_stuck:
@@ -152,7 +152,7 @@ class Agent:
             else:
                 self.undirected_random_exploration = True
                 self.exploration_min_distance = 1.1
-                self.distance_to_goal_threshold = 0.1  # TODO
+                self.distance_to_goal_threshold = 0.1
                 self.episode_length = 15000
                 action = np.random.randint(8)
 
@@ -166,7 +166,7 @@ class Agent:
         else:
             self.episode_length = self.actual_episode_length
             greedy_action = self.dqn.return_greedy_action(state)
-            action, is_greedy = self.dqn.epsilon_greedy_policy(greedy_action)  # TODO REMOVE IS GREEDY FROM RETURN
+            action = self.dqn.epsilon_greedy_policy(greedy_action)
 
         self.steps_taken_in_episode += 1
         self.num_steps_taken += 1
@@ -175,7 +175,7 @@ class Agent:
         # Store action as an int, return as a np.ndarray
         self.action = action
         action = np.array(self.actions[action])
-        return action, is_greedy  # TODO REMOVE IS GREEDY FROM RETURN
+        return action
 
     def set_next_state_and_distance(self, next_state, distance_to_goal):
         if not self.stop_exploration:
@@ -222,7 +222,7 @@ class Agent:
             reward = 0.04
         elif distance_to_goal < 0.5:
             reward = 0.03
-        elif distance_to_goal < 0.6:  # TODO ADD MORE REWARDS FOR MORE DIFFICULT LEVELS?
+        elif distance_to_goal < 0.6:
             reward = 0.02
         else:
             reward = 0
@@ -258,7 +258,7 @@ class Agent:
         if self.train_now:
             # For the first time training, repeat training for 2000 iterations
             if self.first_time_training:
-                for i in range(2000):  # TODO
+                for _ in range(2000):
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(),
                                                    self.num_steps_taken, distance_to_goal)
                 self.first_time_training = False
@@ -285,7 +285,7 @@ class DQN:
         self.num_steps_copy_target = self.episode_length
 
         # Epsilon
-        self.epsilon = 0.5  # TODO
+        self.epsilon = 0.5
         self.start_epsilon_delta = 0.55
         self.end_epsilon_delta = 0.3
 
@@ -294,9 +294,9 @@ class DQN:
     def epsilon_greedy_policy(self, greedy_action):
         if np.random.randint(0, 100) in range(int(self.epsilon * 100)):
             random_action = np.random.randint(0, 8)
-            return random_action, False
+            return random_action
         else:
-            return greedy_action, True
+            return greedy_action
 
     def train_q_network_batch(self, transitions: tuple, step_number, distance_to_goal):
         tensor_current_states, tensor_actions, tensor_rewards, tensor_next_states = transitions
@@ -331,14 +331,14 @@ class DQN:
         # Episode restart, set values for epsilon decay
         if step_number % self.episode_length == 0:
             self.episode_counter += 1
-            print(self.episode_counter)  # TODO
+
 
             # If we reached the goal the previous episode, we start and end at lower epsilons, down to a threshold
             if self.has_reached_goal_previous_episode:
                 self.start_epsilon_delta -= 0.01
                 self.end_epsilon_delta -= 0.01
                 self.start_epsilon_delta = max(self.start_epsilon_delta, 0.2)
-                # self.end_epsilon_delta = max(self.end_epsilon_delta, 0.02) # TODO REVIEW
+
                 self.has_reached_goal_previous_episode = False
 
         # Linear Epsilon Delta Decrease

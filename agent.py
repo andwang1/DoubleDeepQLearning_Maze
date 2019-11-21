@@ -67,7 +67,7 @@ class Agent:
         self.actual_episode_length = self.episode_length
 
         # We randomly explore in alternating directions until we find the goal
-        self.random_exploration_episode_length = 6000  # TODO TEST WITH 10k again
+        self.random_exploration_episode_length = 8000  # TODO TEST WITH 10k again
         self.distance_to_goal_threshold = 0.008
         self.reached_goal = False
         self.stop_exploration = False
@@ -140,7 +140,7 @@ class Agent:
                 direction = (self.episode_counter - 1) % 8
 
                 # If get stuck early in the episode, restart with the next action
-                if self.steps_taken_in_episode < 9 and self.got_stuck:
+                if self.steps_taken_in_episode < 13 and self.got_stuck:
                     self.episode_length = self.num_steps_taken + 1
                     action = 4
                 elif self.steps_taken_in_episode < 25 and not self.got_stuck:
