@@ -236,11 +236,15 @@ class Agent:
         else:
             self.replay_buffer.distance_errors.append(distance_rounded)
 
-        # If the current distance is the largest or smallest out of all distances, record that for batching
-        if distance_rounded > self.replay_buffer.max_distance:
-            self.replay_buffer.max_distance = distance_rounded
-        if distance_rounded < self.replay_buffer.min_distance:
+        # If the current distance is the largest or smallest out of all distances, recalculate the linspace
+        if distance_rounded < self.replay_buffer.min_distance or distance_rounded > self.replay_buffer.max_distance:
             self.replay_buffer.min_distance = distance_rounded
+            self.replay_buffer.max_distance = distance_rounded
+            self.replay_buffer.distance_linspace = np.round(np.linspace(self.replay_buffer.min_distance,
+                                                                        self.replay_buffer.max_distance,
+                                                                        num=self.replay_buffer.batch_size,
+                                                                        endpoint=True),
+                                                            decimals=2)
 
         # Add the transition to the buffer
         transition = (self.state, self.action, reward, next_state)
@@ -374,6 +378,7 @@ class ReplayBuffer:
         # Use distances to sample transitions
         self.distance_errors = collections.deque(maxlen=self.buffer_max_len)
         self.distance_errors_array = np.empty(self.buffer_max_len)
+        self.distance_linspace = None
 
     def __len__(self):
         return len(self.replay_buffer)
@@ -391,9 +396,7 @@ class ReplayBuffer:
 
     def generate_batch(self):
         indices = []
-        for distance in np.round(np.linspace(self.min_distance, self.max_distance, num=self.batch_size, endpoint=True),
-                                 decimals=2):
-
+        for distance in self.distance_linspace:
             samples_at_distance = np.argwhere(self.distance_errors_array[:self.length] == distance).ravel()
 
             while len(samples_at_distance) == 0:

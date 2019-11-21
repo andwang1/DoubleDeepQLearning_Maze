@@ -177,7 +177,7 @@ class ReplayBuffer:
 # Main entry point
 if __name__ == "__main__":
     plot_loss = False
-    plot_qvalues = True
+    plot_qvalues = False
     plot_state_path = True
     # Set the random seed for both NumPy and Torch
     CID = 741321
@@ -207,7 +207,7 @@ if __name__ == "__main__":
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(20):
+        for step_num in range(80):
             transition = agent.step()
             print(transition) # TODO
             print(dqn.return_greedy_action(transition[0]))
