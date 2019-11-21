@@ -207,7 +207,7 @@ if __name__ == "__main__":
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(80):
+        for step_num in range(20):
             transition = agent.step()
             print(transition) # TODO
             print(dqn.return_greedy_action(transition[0]))

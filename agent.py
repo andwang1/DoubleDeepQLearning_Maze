@@ -237,9 +237,15 @@ class Agent:
             self.replay_buffer.distance_errors.append(distance_rounded)
 
         # If the current distance is the largest or smallest out of all distances, recalculate the linspace
-        if distance_rounded < self.replay_buffer.min_distance or distance_rounded > self.replay_buffer.max_distance:
-            self.replay_buffer.min_distance = distance_rounded
+        if distance_rounded > self.replay_buffer.max_distance:
             self.replay_buffer.max_distance = distance_rounded
+            self.replay_buffer.distance_linspace = np.round(np.linspace(self.replay_buffer.min_distance,
+                                                                        self.replay_buffer.max_distance,
+                                                                        num=self.replay_buffer.batch_size,
+                                                                        endpoint=True),
+                                                            decimals=2)
+        if distance_rounded < self.replay_buffer.min_distance:
+            self.replay_buffer.min_distance = distance_rounded
             self.replay_buffer.distance_linspace = np.round(np.linspace(self.replay_buffer.min_distance,
                                                                         self.replay_buffer.max_distance,
                                                                         num=self.replay_buffer.batch_size,
