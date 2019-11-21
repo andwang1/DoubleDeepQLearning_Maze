@@ -57,7 +57,6 @@ class Agent:
     # Function for the agent to compute its reward. In this example, the reward is based on the agent's distance to the goal after the agent takes an action.
     def _compute_reward(self, distance_to_goal):
         reward = 1 - distance_to_goal
-        time.sleep(1)
         return reward
 
     # Function to convert discrete action (as used by a DQN) to a continuous action (as used by the environment).
@@ -205,7 +204,6 @@ if __name__ == "__main__":
             time_steps.append(round((datetime.now() - initial_time).total_seconds() * 1000)) #time taken in milliseconds
             # losses.append(np.log10(loss)) # y axis should have log scale
             losses.append(loss)  # abs loss
-            print(losses)
             # if episode_counter >= 15: # TODO
             #     time.sleep(0.5)
 
@@ -216,7 +214,10 @@ if __name__ == "__main__":
     rb_batch_size = 50
 
     if plot_loss:
-        ax1 = sns.lineplot(range(1, len(losses) + 1), losses,legend="Loss")
+        ax1 = plt.axes()
+        line,  = ax1.plot(range(1, len(losses) + 1), losses, label="Loss")
+        # ax1.
+        # ax1 = sns.lineplot(range(1, len(losses) + 1), losses)
 
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
@@ -243,9 +244,9 @@ if __name__ == "__main__":
         for step_num in range(0, len(losses), 20):
             if step_num == len(losses):
                 break
-            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2, label="Episode start")
-        # plt.legend()
-
+            vline = ax1.axvline(step_num, ls="--", color="black", linewidth=0.2, label="Episode start")
+        plt.legend(handles=[line, vline])
+        # plt.savefig("online.png")
         plt.show()
 
     if plot_state_path:

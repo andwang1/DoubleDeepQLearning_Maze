@@ -228,14 +228,14 @@ if __name__ == "__main__":
     initial_time = False
 
     while True:
-        if episode_counter == 85:
+        if episode_counter == 25:
             break
         episode_counter += 1
 
         # Reset the environment for the start of the episode.
         agent.reset()
         # Loop over steps within this episode.
-        for step_num in range(100):
+        for step_num in range(20):
             # In this episode we will choose the greedy action instead of the random actions.
             transition = agent.step()
             # Skip the setup time to get as the first time for time plotting when the agent has made the first step.
@@ -260,7 +260,8 @@ if __name__ == "__main__":
         time_steps = time_steps - time_steps[0]
 
         # Step axis
-        ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
+        ax1 = plt.axes()
+        line, = ax1.plot(range(rb_batch_size, len(losses) + rb_batch_size), losses, label="Loss")
         ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
@@ -269,6 +270,7 @@ if __name__ == "__main__":
         plt.minorticks_off()
         plt.ylabel("Loss")
         plt.title("Batch Learning - Gamma = 0.9")
+
 
         # Time axis
         # ax2 = ax1.twiny()
@@ -281,7 +283,8 @@ if __name__ == "__main__":
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
+            vline = ax1.axvline(step_num, ls="--", color="black", linewidth=0.2, label="Episode start")
+        plt.legend(handles=[line, vline])
         plt.show()
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle

@@ -226,7 +226,7 @@ if __name__ == "__main__":
     optimal_delta = 0.00258
     # reward 13.192618285762457
     # For plotting
-    delta_range = [0, 0.0013, optimal_delta, 0.021, 1]
+    delta_range = [0, optimal_delta, 0.1, 0.6, 1]
     # FIND NEW OTHER DELTAS SO CURVE IS SMOOTH
     # delta_range = np.arange(0.00258, 0.00259, 0.001)
     # print("begin")
@@ -312,9 +312,14 @@ if __name__ == "__main__":
 
     # Plotting the reward functions as function of steps and time
     if plot_rewards:
-        plt.plot(delta_range, episode_rewards, marker="rx")
+        ax1 = plt.axes()
+        ax1.plot(delta_range, episode_rewards, marker="x", label="Rewards")
         plt.xlabel("Delta value")
+        ax1.set_xticks([0, 0.1, 0.6, 1])
         plt.ylabel("Episode rewards")
+        plt.annotate(f"delta = {optimal_delta}", (delta_range[1], episode_rewards[1]), xytext=(-0.04, episode_rewards[1] +0.1))
+        plt.legend()
+        plt.title("Delta value comparison")
         plt.show()
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle

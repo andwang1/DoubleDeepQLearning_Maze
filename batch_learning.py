@@ -176,9 +176,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -236,7 +236,8 @@ if __name__ == "__main__":
         # print(len(losses))
 
         # Step axis
-        ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
+        ax1 = plt.axes()
+        line, = ax1.plot(range(rb_batch_size, len(losses) + rb_batch_size), losses, label="Loss")
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
         ax1.set_xlim([1, len(losses) + rb_batch_size - 1])  # make the x axis start at 1
@@ -258,8 +259,10 @@ if __name__ == "__main__":
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
+            vline = ax1.axvline(step_num, ls="--", color="black", linewidth=0.2, label="Episode start")
+        plt.legend(handles=[line, vline])
         plt.show()
+
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
     if plot_qvalues:

@@ -300,9 +300,9 @@ class ReplayBuffer:
 
 # Main entry point
 if __name__ == "__main__":
-    plot_loss = False
+    plot_loss = True
     plot_qvalues = False
-    plot_state_path = True
+    plot_state_path = False
     # Set the random seed for both NumPy and Torch
     CID = 741321
     np.random.seed(CID)
@@ -418,12 +418,15 @@ if __name__ == "__main__":
     # # Plotting the loss functions as function of steps and time
     if plot_loss:
         # Delta axis
-        plt.plot(range(500), distances_old, color="green", label="old")
+
+        plt.plot(range(500), distances_old, color="red", label="Orig. reward")
         # ax2 = ax1.twiny()
         # ax1.set_xlabel("Delta value")
-        plt.plot(range(500), distances_new, color="red")
-        plt.legend()
+        plt.plot(range(500), distances_new, color="green", label="New reward")
+        plt.legend(loc=3)
+        plt.xlabel("No. of steps")
         plt.ylabel("Final distance")
+        plt.title("Reward function comparison")
 
         # Add vertical lines
         # for step_num in range(500, len(losses) + 500, 20):

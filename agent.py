@@ -25,7 +25,7 @@ class Network(torch.nn.Module):
     def __init__(self, input_dimension, output_dimension):
         super(Network, self).__init__()
 
-        # 3 not fully connected layers to allow learning separation of map areas
+        # 3 not fully connected layers
         self.layer_1 = torch.nn.Linear(in_features=input_dimension, out_features=200)
         self.layer_2 = torch.nn.Linear(in_features=200, out_features=200)
         self.layer_3 = torch.nn.Linear(in_features=200, out_features=200)
@@ -312,11 +312,17 @@ class DQN:
         network_predictions = self.q_network.forward(tensor_current_states)
         tensor_predicted_q_value_current_state = torch.gather(network_predictions, 1, tensor_actions.long())
 
-        # Next state values, Double Q using target network to predict values
-        tensor_next_states_values = self.return_next_state_values_tensor(tensor_next_states)
+        # Double Q, use Q network to get greedy actions, target network to get the value of the next state
+        tensor_network_predictions = self.q_network.forward(tensor_next_states)
+        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1, 1)
+
+        # Detach the gradient from the target network tensor
+        with torch.no_grad():
+            tensor_target_network_predictions = self.target_q_network.forward(tensor_next_states)
+        tensor_next_state_values = torch.gather(tensor_target_network_predictions, 1, tensor_greedy_actions)
 
         # Bellman equation
-        tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_next_states_values
+        tensor_bellman_current_state_value = tensor_rewards + self.gamma * tensor_next_state_values
 
         loss = torch.nn.MSELoss()(tensor_bellman_current_state_value, tensor_predicted_q_value_current_state)
         loss.backward()
@@ -355,16 +361,6 @@ class DQN:
         input_tensor = torch.tensor(current_state).float().unsqueeze(0)
         network_prediction = self.q_network.forward(input_tensor)
         return int(network_prediction.argmax())
-
-    def return_next_state_values_tensor(self, tensor_next_states):
-        # Double Q, use Q network to get greedy actions, target network to get the value
-        tensor_network_predictions = self.q_network.forward(tensor_next_states)
-        tensor_greedy_actions = tensor_network_predictions.argmax(axis=1).reshape(-1, 1)
-
-        with torch.no_grad():
-            tensor_target_network_predictions = self.target_q_network.forward(tensor_next_states)
-        tensor_next_state_values = torch.gather(tensor_target_network_predictions, 1, tensor_greedy_actions)
-        return tensor_next_state_values
 
     def copy_weights_to_target_dqn(self):
         self.target_q_network.load_state_dict(self.q_network.state_dict())

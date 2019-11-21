@@ -4,6 +4,7 @@ import torch
 import time
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib
 import collections
 
 from environment import Environment
@@ -230,7 +231,7 @@ if __name__ == "__main__":
     # initialise target network to same weights as our q network
     dqn.copy_weights_to_target_dqn()
     while True:
-        if episode_counter == 45:
+        if episode_counter == 25:
             break
         episode_counter += 1
 
@@ -267,15 +268,20 @@ if __name__ == "__main__":
         time_steps = time_steps - time_steps[0]
 
         # Step axis
-        ax1 = sns.lineplot(range(rb_batch_size, len(losses) + rb_batch_size), losses)
+        ax1 = plt.axes()
+        line, = ax1.plot(range(rb_batch_size, len(losses) + rb_batch_size), losses, label="Loss")
         ax1.set_xlim([0, len(losses)])  # make the x axis start at 1
         ax1.set_xlabel("No. of steps")
         ax1.set_xticks(range(0, 501, 50))
+
         plt.yscale("log")
         # Turn off small ticks in between created by log
         plt.minorticks_off()
+        ax1.set_yticks([0.05, 0.01])
+        # ax1.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
         plt.ylabel("Loss")
         plt.title("Target Network Learning - Gamma = 0.9")
+
         # Time axis
         # ax2 = ax1.twiny()
         # time_labels_per_episode = time_steps
@@ -287,9 +293,10 @@ if __name__ == "__main__":
 
         # Add vertical lines
         for step_num in range(0, len(losses) + rb_batch_size, 20):
-            ax1.axvline(step_num, ls="--", color="black", linewidth=0.2)
-        plt.show()
-
+            vline = ax1.axvline(step_num, ls="--", color="black", linewidth=0.2, label="Episode start")
+        plt.legend(handles=[line, vline])
+        # plt.show()
+        plt.savefig("target.png")
         # start both x axis on 0?
 
     # steps of 0.05 as each state is 0.1 distance away, know from the obstacle
