@@ -101,8 +101,11 @@ class Environment:
     # Function to execute an agent's step within this environment, returning the next state and the distance to the goal
     def step(self, state, action):
         # If the action is greater than the maximum action, then the agent stays still
+        self.got_stuck = False
         if np.linalg.norm(action) > 0.02:
             next_state = state
+            print("NORM")
+            self.got_stuck = True
         else:
             # Determine what the new state would be if the agent could move there
             next_state = state + action
@@ -117,13 +120,14 @@ class Environment:
                     break
             if not is_agent_in_free_space:
                 next_state = state
+                self.got_stuck = True
         # Compute the distance to the goal
         distance_to_goal = np.linalg.norm(next_state - self.goal_state)
         # Return the next state and the distance to the goal
         return next_state, distance_to_goal
 
     # Function to draw the environment and display it on the screen, if required
-    def show(self, agent_state):
+    def show(self, agent_state, is_greedy): # TODO REMOVE IS GREEDY FROM RETURN
         # Create a grey image, representing the environment walls
         self.image.fill(100)
         # Draw all the free blocks, representing the free space
@@ -134,7 +138,10 @@ class Environment:
         # Draw the agent
         agent_centre = (int(agent_state[0] * self.magnification), int((1 - agent_state[1]) * self.magnification))
         agent_radius = int(0.01 * self.magnification)
-        agent_colour = (0, 0, 255)
+        if is_greedy:
+            agent_colour = (255, 0, 0)
+        else:
+            agent_colour = (0, 0, 255)
         cv2.circle(self.image, agent_centre, agent_radius, agent_colour, cv2.FILLED)
         # Draw the goal
         goal_centre = (int(self.goal_state[0] * self.magnification), int((1 - self.goal_state[1]) * self.magnification))
