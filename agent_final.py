@@ -258,7 +258,7 @@ class Agent:
         if self.train_now:
             # For the first time training, repeat training for 2000 iterations
             if self.first_time_training:
-                for _ in range(2000):  # TODO
+                for i in range(2000):  # TODO
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(),
                                                    self.num_steps_taken, distance_to_goal)
                 self.first_time_training = False
