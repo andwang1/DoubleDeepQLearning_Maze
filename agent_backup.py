@@ -42,7 +42,6 @@ class Network(torch.nn.Module):
         torch.nn.init.xavier_uniform_(self.layer_4.weight)
         torch.nn.init.xavier_uniform_(self.layer_5.weight)
         torch.nn.init.xavier_uniform_(self.layer_6.weight)
-        torch.nn.init.xavier_uniform_(self.layer_7.weight)
         torch.nn.init.xavier_uniform_(self.output_layer.weight)
 
     def forward(self, input):
@@ -63,7 +62,7 @@ class Agent:
     def __init__(self):
         # Episode details
         self.episode_counter = 0
-        self.episode_length = 150 # test on map 2 150 with decreasing ep length TODO TEST
+        self.episode_length = 250 # test on map 2 150 with decreasing ep length TODO TEST
         self.actual_episode_length = self.episode_length
 
         # We randomly explore in alternating directions until we find the goal
@@ -126,6 +125,12 @@ class Agent:
                 self.initial_area_exploration = False
                 self.num_steps_taken = 0
 
+            # Decrease episode length every time we reach the goal TODO
+            # if self.dqn.has_reached_goal_previous_episode:
+                # self.actual_episode_length -= 5 # TODO
+                # self.actual_episode_length = max(100, self.actual_episode_length)
+                # print(self.actual_episode_length)
+
             return True
         else:
             return False
@@ -152,13 +157,13 @@ class Agent:
             else:
                 self.undirected_random_exploration = True
                 self.exploration_min_distance = 1.1
-                self.distance_to_goal_threshold = 0.1 # TODO
+                self.distance_to_goal_threshold = 0.12 # TODO
                 self.episode_length = 15000
                 action = np.random.randint(8)
 
         # If we have reached the goal once, explore a bit more of the starting area before we start training
         elif self.initial_area_exploration:
-            self.episode_length = 800
+            self.episode_length = 200
             self.done_initial_area_exploration = True
             action = np.random.randint(8)
 
@@ -225,6 +230,8 @@ class Agent:
             reward = 0.03
         elif distance_to_goal < 0.6: # TODO ADD MORE REWARDS FOR MORE DIFFICULT LEVELS?
             reward = 0.02
+        elif distance_to_goal < 0.7:
+            reward = 0.01
         else:
             reward = 0
 
@@ -249,7 +256,7 @@ class Agent:
         if self.train_now:
             # For the first time training, repeat training for 2000 iterations
             if self.first_time_training:
-                for i in range(2000): # TODO
+                for i in range(4000):
                     self.dqn.train_q_network_batch(self.replay_buffer.generate_batch(),
                                                    self.num_steps_taken, distance_to_goal)
                 self.first_time_training = False
@@ -318,11 +325,11 @@ class DQN:
             self.episode_counter += 1
             print(self.episode_counter) # TODO
 
-            # If we reached the goal the previous episode, we start and end at lower epsilons, down to a threshold
+            # If we reached the goal the previous episode, we start and end at lower epsilons
             if self.has_reached_goal_previous_episode:
                 self.start_epsilon_delta -= 0.01
                 self.end_epsilon_delta -= 0.01
-                self.start_epsilon_delta = max(self.start_epsilon_delta, 0.2)
+                self.start_epsilon_delta = max(self.start_epsilon_delta, 0.3)
                 # self.end_epsilon_delta = max(self.end_epsilon_delta, 0.02) # TODO REVIEW
                 self.has_reached_goal_previous_episode = False
 
