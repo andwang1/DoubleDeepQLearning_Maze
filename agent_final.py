@@ -130,7 +130,7 @@ class Agent:
         else:
             return False
 
-    def get_next_action(self, state: np.ndarray):
+    def get_next_action(self, state):
 
         # Random exploration
         if not self.stop_exploration:

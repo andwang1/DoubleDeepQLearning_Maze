@@ -130,7 +130,7 @@ class Agent:
         else:
             return False
 
-    def get_next_action(self, state: np.ndarray):  # TODO REMOVE IS GREEDY FROM RETURN
+    def get_next_action(self, state):  # TODO REMOVE IS GREEDY FROM RETURN
         is_greedy = False  # TODO REMOVE IS GREEDY FROM RETURN
         # Random exploration
         if not self.stop_exploration:
