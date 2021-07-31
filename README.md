@@ -30,6 +30,9 @@ python starter_code.py  # To launch the coursework script
 ## Techniques used:
 
 Double Deep Q-Learning
+
 Custom Experience Replay Buffer to sample uniformly across map areas
-Free Exploration before training
-Continuous Action space using cross-entropy method
+
+Free exploration before training
+
+Continuous action space using Cross-Entropy Method
